@@ -1,0 +1,39 @@
+---
+import { getCollection, render } from 'astro:content';
+import LessonLayout from '@layouts/LessonLayout.astro';
+import CalloutBox from '@components/CalloutBox.astro';
+import { sections } from '@lib/navigation';
+
+const COLLECTION = 'beginner';
+const sectionMeta = sections.find((s) => s.collectionName === COLLECTION)!;
+
+export async function getStaticPaths() {
+  const lessons = await getCollection('beginner' as any, ({ data }: any) => !data.draft);
+  return lessons.map((lesson: any) => ({
+    params: { id: lesson.id },
+    props: { lesson },
+  }));
+}
+
+const { lesson } = Astro.props;
+const { Content, headings } = await render(lesson);
+
+const allLessons = (await getCollection('beginner' as any, ({ data }: any) => !data.draft))
+  .sort((a: any, b: any) => a.data.order - b.data.order);
+const currentIndex = allLessons.findIndex((l: any) => l.id === lesson.id);
+const prev = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
+const next = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
+---
+
+<LessonLayout
+  title={lesson.data.title}
+  description={lesson.data.description}
+  section={COLLECTION}
+  headings={headings}
+  prevLesson={prev ? { title: prev.data.title, href: `${sectionMeta.urlPrefix}/${prev.id}` } : undefined}
+  nextLesson={next ? { title: next.data.title, href: `${sectionMeta.urlPrefix}/${next.id}` } : undefined}
+  pubDate={lesson.data.pubDate}
+  updatedDate={lesson.data.updatedDate}
+>
+  <Content components={{ CalloutBox }} />
+</LessonLayout>

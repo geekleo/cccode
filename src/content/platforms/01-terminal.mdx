@@ -1,0 +1,375 @@
+---
+title: "终端使用"
+description: "在终端中使用 Claude Code 的完整指南，涵盖交互模式、快捷键、多行输入和性能优化"
+order: 1
+section: platforms
+difficulty: beginner
+readingTime: 10
+pubDate: 2026-02-09
+tags: ["终端", "CLI", "快捷键", "tmux"]
+---
+
+## 终端要求与环境准备
+
+Claude Code 是一个命令行工具，运行在终端环境中。在开始使用之前，请确保你的终端满足以下基本要求：
+
+- **终端模拟器**：macOS Terminal、iTerm2、Windows Terminal（WSL）、GNOME Terminal、Konsole 等主流终端均可
+- **Shell**：Bash 4.0+ 或 Zsh 5.0+（推荐 Zsh）
+- **Node.js**：18.0 或更高版本
+- **屏幕宽度**：建议至少 80 列，推荐 120 列以获得最佳显示效果
+- **颜色支持**：支持 256 色或 True Color 的终端效果最佳
+
+<CalloutBox type="tip">
+推荐使用 iTerm2（macOS）或 Windows Terminal（Windows WSL）作为终端模拟器，它们对颜色和 Unicode 字符的支持更加完善，能获得最佳的 Claude Code 使用体验。
+</CalloutBox>
+
+### 验证终端环境
+
+你可以通过以下命令快速检查终端环境是否就绪：
+
+```bash
+# 检查 Node.js 版本
+node --version
+
+# 检查 Claude Code 是否已安装
+claude --version
+
+# 检查终端颜色支持
+echo $TERM
+```
+
+如果 `$TERM` 的值为 `xterm-256color` 或 `screen-256color`，说明你的终端支持丰富的颜色输出。
+
+## 启动 Claude Code
+
+安装完成后，在终端中启动 Claude Code 非常简单：
+
+```bash
+# 在当前目录启动交互模式
+claude
+
+# 在指定项目目录启动
+claude -p /path/to/your/project
+
+# 直接执行单条指令（非交互模式）
+claude -m "解释这个项目的目录结构"
+
+# 以 print 模式运行，仅输出结果（适合脚本使用）
+claude -p "列出所有 TODO 注释" --output-format stream-json
+```
+
+启动后，你会看到 Claude Code 的交互界面，包括欢迎信息、当前工作目录提示以及输入光标。
+
+## 交互模式详解
+
+交互模式是 Claude Code 最常用的使用方式。进入交互模式后，你可以像与助手对话一样输入自然语言指令。
+
+### 基本对话
+
+```
+> 这个项目使用了什么框架？
+
+Claude: 根据我对项目文件的分析，这个项目使用了...
+
+> 帮我写一个用户登录的 API 接口
+
+Claude: 好的，我来为你创建用户登录的 API 接口...
+```
+
+### 上下文感知
+
+Claude Code 会自动感知当前工作目录中的文件和项目结构。你不需要手动告诉它项目的技术栈或文件位置，它会根据需要自动读取相关文件。
+
+### 工具调用反馈
+
+当 Claude Code 需要读取文件、执行命令或修改代码时，终端会显示工具调用的状态信息，让你清楚地知道它正在做什么：
+
+```
+> 修复 src/utils/format.ts 中的 bug
+
+Claude: 让我先查看这个文件的内容。
+
+📖 Reading file: src/utils/format.ts
+🔍 Searching for related tests...
+✏️ Editing file: src/utils/format.ts
+
+我已经找到并修复了问题...
+```
+
+## 键盘快捷键
+
+掌握以下快捷键可以大幅提升你使用 Claude Code 的效率：
+
+### 核心快捷键
+
+| 快捷键 | 功能 | 说明 |
+|--------|------|------|
+| `Tab` | 自动补全 | 补全文件路径、命令等 |
+| `Shift+Tab` | 切换 Plan 模式 | 让 Claude 先规划再执行，适合复杂任务 |
+| `Escape` | 取消当前操作 | 中断正在进行的生成或工具调用 |
+| `↑` / `↓` | 浏览历史 | 翻阅之前输入过的指令 |
+| `Ctrl+C` | 中断 / 退出 | 中断当前操作，连按两次退出 Claude Code |
+| `Ctrl+L` | 清屏 | 清除终端屏幕内容 |
+
+### Tab 自动补全
+
+按下 `Tab` 键时，Claude Code 会根据当前输入上下文提供智能补全建议，包括：
+
+- 文件和目录路径
+- 常用命令和斜杠命令（如 `/help`、`/clear`）
+- 之前使用过的类似指令
+
+```
+> 查看 src/comp[Tab]
+> 查看 src/components/    # 自动补全目录名
+```
+
+### Plan 模式（Shift+Tab）
+
+Plan 模式是 Claude Code 的一个重要功能。按下 `Shift+Tab` 切换到 Plan 模式后，Claude 会先制定详细的执行计划，而不是立即开始修改代码：
+
+```
+> [Plan 模式] 重构用户认证模块
+
+Claude: 以下是我的重构计划：
+1. 分析现有认证模块的结构...
+2. 提取公共认证逻辑到独立模块...
+3. 更新所有引用点...
+4. 添加单元测试...
+
+是否继续执行？
+```
+
+<CalloutBox type="info">
+对于涉及多个文件的复杂重构任务，强烈建议使用 Plan 模式。它可以让你在 Claude 执行之前审查方案，避免不必要的修改。
+</CalloutBox>
+
+## 多行输入
+
+有时候你的指令比较长，需要跨多行输入。Claude Code 支持多种多行输入方式：
+
+### 方法一：反斜杠换行
+
+在行尾使用 `\` 表示输入尚未结束：
+
+```
+> 创建一个 React 组件，\
+  要求包含以下功能：\
+  1. 用户头像显示 \
+  2. 用户名和邮箱 \
+  3. 编辑按钮
+```
+
+### 方法二：粘贴多行文本
+
+你可以直接将多行文本粘贴到终端中。Claude Code 会自动识别粘贴操作并正确处理多行输入。
+
+### 方法三：使用引号包裹
+
+使用引号包裹的内容可以自然地跨行：
+
+```
+> 请帮我写一段代码，功能如下：
+  "读取 config.json 文件，
+   解析其中的数据库配置，
+   并创建数据库连接池"
+```
+
+## 终端颜色输出与格式化
+
+Claude Code 充分利用终端的颜色功能来提升可读性：
+
+- **代码高亮**：输出的代码会根据语言进行语法高亮
+- **差异对比**：文件修改会以红色（删除）和绿色（新增）显示
+- **状态标识**：成功（绿色）、警告（黄色）、错误（红色）一目了然
+- **Markdown 渲染**：Claude 的回复会在终端中进行基本的 Markdown 渲染
+
+### 关闭颜色输出
+
+如果你需要将 Claude Code 的输出重定向到文件或管道，可以关闭颜色：
+
+```bash
+# 使用环境变量关闭颜色
+NO_COLOR=1 claude -m "分析代码"
+
+# 或设置 FORCE_COLOR=0
+FORCE_COLOR=0 claude -m "分析代码"
+```
+
+## 搭配 tmux / screen 使用
+
+对于长时间运行的任务或需要保持会话的场景，推荐搭配终端复用器使用。
+
+### 使用 tmux
+
+```bash
+# 创建一个新的 tmux 会话
+tmux new -s claude-session
+
+# 在 tmux 中启动 Claude Code
+claude
+
+# 断开会话（Claude Code 继续在后台运行）
+# 按 Ctrl+B 然后按 D
+
+# 重新连接到会话
+tmux attach -t claude-session
+```
+
+### 使用 screen
+
+```bash
+# 创建一个新的 screen 会话
+screen -S claude-session
+
+# 在 screen 中启动 Claude Code
+claude
+
+# 断开会话
+# 按 Ctrl+A 然后按 D
+
+# 重新连接
+screen -r claude-session
+```
+
+<CalloutBox type="tip">
+使用 tmux 或 screen 的一大好处是：即使你的 SSH 连接断开，Claude Code 的会话仍然保持活跃。当你重新连接后，可以继续之前的对话。
+</CalloutBox>
+
+### tmux 推荐配置
+
+为了获得更好的 Claude Code 使用体验，建议在 `~/.tmux.conf` 中添加以下配置：
+
+```bash
+# 启用 256 色支持
+set -g default-terminal "screen-256color"
+set -ga terminal-overrides ",xterm-256color:Tc"
+
+# 增加历史记录行数
+set -g history-limit 50000
+
+# 启用鼠标支持（方便滚动查看 Claude 的输出）
+set -g mouse on
+```
+
+## 终端配置文件与环境变量
+
+你可以通过 Shell 配置文件自定义 Claude Code 的行为。
+
+### 常用环境变量
+
+在 `~/.bashrc` 或 `~/.zshrc` 中设置：
+
+```bash
+# API 认证密钥
+export ANTHROPIC_API_KEY="sk-ant-xxxxx"
+
+# 设置默认模型
+export CLAUDE_CODE_MODEL="claude-sonnet-4-20250514"
+
+# 代理设置（如需要）
+export HTTP_PROXY="http://proxy.example.com:8080"
+export HTTPS_PROXY="http://proxy.example.com:8080"
+```
+
+### Shell 别名
+
+创建一些方便的别名加速日常使用：
+
+```bash
+# 快速启动
+alias cc="claude"
+
+# 在当前 Git 仓库根目录启动
+alias ccr='claude -p $(git rev-parse --show-toplevel)'
+
+# 快速代码审查
+alias ccreview="claude -m '请审查最近一次 git commit 的代码变更'"
+
+# 快速解释
+alias ccexplain="claude -m '请解释这个项目的整体架构'"
+```
+
+## 自定义提示符
+
+Claude Code 允许你通过配置来自定义交互界面的提示符样式。你可以使用 `/config` 命令来调整相关设置：
+
+```
+> /config
+
+# 在配置菜单中可以调整：
+# - 主题和颜色方案
+# - 提示符样式
+# - 输出详细程度
+# - 自动确认设置
+```
+
+你也可以通过 `settings.json` 文件进行更详细的配置。配置文件位于：
+
+- **macOS / Linux**：`~/.claude/settings.json`
+- **项目级别**：项目根目录下的 `.claude/settings.json`
+
+## 性能优化技巧
+
+以下技巧可以帮助你在终端中更高效地使用 Claude Code：
+
+### 1. 缩小工作目录范围
+
+在项目的子目录中启动 Claude Code，可以减少它需要扫描的文件数量：
+
+```bash
+# 不推荐：在包含多个项目的父目录中启动
+cd ~/projects && claude
+
+# 推荐：直接进入目标项目目录
+cd ~/projects/my-app && claude
+```
+
+### 2. 善用 .claudeignore
+
+创建 `.claudeignore` 文件，排除不需要 Claude 分析的目录和文件：
+
+```
+# .claudeignore
+node_modules/
+dist/
+build/
+.git/
+*.min.js
+*.lock
+```
+
+### 3. 使用具体的指令
+
+具体的指令比模糊的描述更高效：
+
+```
+# 不推荐
+> 这个项目有什么问题？
+
+# 推荐
+> 检查 src/api/auth.ts 中的错误处理是否完善
+```
+
+### 4. 利用非交互模式处理批量任务
+
+对于重复性任务，使用非交互模式配合脚本可以大幅提高效率：
+
+```bash
+# 批量分析多个文件
+for file in src/api/*.ts; do
+  claude -m "检查 $file 的类型安全性" --output-format stream-json
+done
+```
+
+### 5. 合理使用 Escape 键
+
+当你发现 Claude 的回复方向不对时，及时按 `Escape` 中断，调整指令后重新输入，而不是等待它完成整个回复。
+
+<CalloutBox type="info">
+终端是使用 Claude Code 最灵活、最强大的方式。熟练掌握终端操作后，你可以结合 Shell 脚本、管道和其他命令行工具，构建强大的自动化工作流。
+</CalloutBox>
+
+## 下一步
+
+掌握了终端中的基本使用后，如果你更偏好图形化界面，可以继续了解 Claude Code 在 VS Code 和 JetBrains IDE 中的集成方案。

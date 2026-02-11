@@ -1,0 +1,186 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+
+interface Resource {
+  title: string;
+  description: string;
+  url: string;
+  source: string;
+  lang: 'zh' | 'en';
+  featured?: boolean;
+}
+
+interface ResourceCategory {
+  id: string;
+  icon: string;
+  title: string;
+  resources: Resource[];
+}
+
+const categories: ResourceCategory[] = [
+  {
+    id: 'official',
+    icon: '📖',
+    title: '官方资源',
+    resources: [
+      { title: 'Claude Code 官方文档', description: 'Anthropic 官方的 Claude Code 完整文档', url: 'https://docs.anthropic.com/en/docs/claude-code', source: 'Anthropic', lang: 'en', featured: true },
+      { title: 'Claude Code GitHub', description: '官方开源仓库，包含 Issue 和 Discussions', url: 'https://github.com/anthropics/claude-code', source: 'GitHub', lang: 'en', featured: true },
+      { title: 'Anthropic Cookbook', description: '官方示例代码和最佳实践', url: 'https://github.com/anthropics/anthropic-cookbook', source: 'GitHub', lang: 'en' },
+      { title: 'Claude API 文档', description: 'Claude API 的完整参考文档', url: 'https://docs.anthropic.com/en/docs', source: 'Anthropic', lang: 'en' },
+    ],
+  },
+  {
+    id: 'tutorials',
+    icon: '🏁',
+    title: '入门教程',
+    resources: [
+      { title: 'Claude Code 快速上手指南', description: '5 分钟内完成安装并开始使用', url: '/beginner/05-quick-start-5min', source: '本站', lang: 'zh', featured: true },
+      { title: 'Claude Code Best Practices', description: 'Anthropic 官方推荐的最佳使用方式', url: 'https://docs.anthropic.com/en/docs/claude-code/best-practices', source: 'Anthropic', lang: 'en' },
+      { title: 'Building with Claude Code', description: '从零开始用 Claude Code 构建项目', url: 'https://docs.anthropic.com/en/docs/claude-code/tutorials', source: 'Anthropic', lang: 'en' },
+    ],
+  },
+  {
+    id: 'mcp',
+    icon: '🔌',
+    title: 'MCP 生态',
+    resources: [
+      { title: 'MCP 协议规范', description: 'Model Context Protocol 官方规范', url: 'https://modelcontextprotocol.io', source: 'Anthropic', lang: 'en', featured: true },
+      { title: 'MCP Server 列表', description: '社区维护的 MCP Server 合集', url: 'https://github.com/modelcontextprotocol/servers', source: 'GitHub', lang: 'en' },
+      { title: 'MCP Server 开发实战', description: '手把手教你开发自己的 MCP Server', url: '/advanced/02-mcp-server-practice', source: '本站', lang: 'zh' },
+    ],
+  },
+  {
+    id: 'video',
+    icon: '📹',
+    title: '视频教程',
+    resources: [
+      { title: 'Claude Code 入门到精通', description: 'B 站系列教程，中文讲解', url: 'https://www.bilibili.com', source: 'Bilibili', lang: 'zh' },
+      { title: 'Claude Code Tips & Tricks', description: 'YouTube 上的实用技巧合集', url: 'https://www.youtube.com', source: 'YouTube', lang: 'en' },
+    ],
+  },
+  {
+    id: 'tools',
+    icon: '🔧',
+    title: '工具与插件',
+    resources: [
+      { title: 'VS Code Claude Code 扩展', description: '在 VS Code 中使用 Claude Code', url: '/platforms/02-vscode', source: '本站', lang: 'zh' },
+      { title: 'JetBrains Claude Code 插件', description: '在 IntelliJ IDEA 等 IDE 中使用', url: '/platforms/03-jetbrains', source: '本站', lang: 'zh' },
+      { title: 'Claude Code CLI', description: '命令行终端中的使用方式', url: '/platforms/01-terminal', source: '本站', lang: 'zh' },
+    ],
+  },
+  {
+    id: 'articles',
+    icon: '🔬',
+    title: '深度文章',
+    resources: [
+      { title: 'Claude Code 上下文管理策略', description: '深入理解 Token 机制和上下文优化', url: '/best-practices/02-context-optimization', source: '本站', lang: 'zh' },
+      { title: 'Claude Code vs GitHub Copilot', description: '详细功能对比分析', url: '/comparisons/01-vs-github-copilot', source: '本站', lang: 'zh' },
+      { title: '多 Agent 协作模式解析', description: '深入理解 Subagent 和 Orchestrator 模式', url: '/advanced/04-multi-agent-collaboration', source: '本站', lang: 'zh' },
+    ],
+  },
+];
+
+const totalResources = categories.reduce((sum, cat) => sum + cat.resources.length, 0);
+---
+
+<BaseLayout title="资源 - Claude Code 教程" description="Claude Code 相关资源合集：官方文档、教程、视频、工具">
+  <!-- Hero -->
+  <div class="relative overflow-hidden border-b border-gray-200 dark:border-gray-800">
+    <div class="absolute inset-0 bg-gradient-to-b from-primary-50 to-white dark:from-primary-950/20 dark:to-gray-950"></div>
+    <div class="bg-grid absolute inset-0 opacity-50"></div>
+    <div class="relative mx-auto max-w-7xl px-4 py-14 sm:px-6">
+      <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-3xl shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+        📚
+      </div>
+      <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">资源合集</h1>
+      <p class="mt-3 max-w-2xl text-lg text-gray-600 dark:text-gray-400">
+        精选 Claude Code 相关资源，包括官方文档、教程、视频和开发工具。
+      </p>
+      <div class="mt-4 flex items-center gap-4">
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700 dark:bg-primary-950/50 dark:text-primary-300">
+          {totalResources}+ 篇资源
+        </span>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+          {categories.length} 个分类
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Categories -->
+  <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <!-- Quick nav -->
+    <div class="mb-10 flex flex-wrap gap-2">
+      {categories.map((cat) => (
+        <a href={`#${cat.id}`} class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 dark:border-gray-700 dark:text-gray-400 dark:hover:border-primary-700 dark:hover:bg-primary-950/50 dark:hover:text-primary-300">
+          <span>{cat.icon}</span>
+          {cat.title}
+          <span class="text-xs text-gray-400 dark:text-gray-500">({cat.resources.length})</span>
+        </a>
+      ))}
+    </div>
+
+    <!-- Resource sections -->
+    <div class="space-y-12">
+      {categories.map((cat) => (
+        <section id={cat.id}>
+          <h2 class="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white">
+            <span>{cat.icon}</span>
+            {cat.title}
+            <span class="text-sm font-normal text-gray-400 dark:text-gray-500">({cat.resources.length})</span>
+          </h2>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {cat.resources.map((res) => (
+              <a
+                href={res.url}
+                target={res.url.startsWith('/') ? undefined : '_blank'}
+                rel={res.url.startsWith('/') ? undefined : 'noopener noreferrer'}
+                class="card-hover group flex flex-col rounded-xl border border-gray-200 bg-white p-4 transition-all hover:border-primary-300 hover:shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:hover:border-primary-700"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <h3 class="text-sm font-semibold text-gray-900 transition-colors group-hover:text-primary-700 dark:text-white dark:group-hover:text-primary-300">
+                    {res.featured && <span class="mr-1 text-amber-500">⭐</span>}
+                    {res.title}
+                  </h3>
+                  <svg class="h-4 w-4 shrink-0 text-gray-300 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-500 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    {res.url.startsWith('/')
+                      ? <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                      : <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    }
+                  </svg>
+                </div>
+                <p class="mt-1.5 flex-1 text-xs text-gray-500 dark:text-gray-400">{res.description}</p>
+                <div class="mt-3 flex items-center gap-2">
+                  <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">{res.source}</span>
+                  <span class:list={[
+                    'rounded px-1.5 py-0.5 text-[10px] font-medium',
+                    res.lang === 'zh'
+                      ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-400'
+                      : 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400',
+                  ]}>
+                    {res.lang === 'zh' ? '中文' : 'EN'}
+                  </span>
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+
+    <!-- CTA -->
+    <div class="mt-16 rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 px-6 py-10 text-center dark:border-gray-700 dark:bg-gray-900/30">
+      <p class="text-lg font-semibold text-gray-900 dark:text-white">发现好资源？</p>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">欢迎通过 Pull Request 提交，帮助完善资源列表。</p>
+      <a
+        href="https://github.com/anthropics/claude-code"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+      >
+        提交 PR
+        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+      </a>
+    </div>
+  </div>
+</BaseLayout>

@@ -1,0 +1,312 @@
+---
+title: "Claude Code vs Cursor"
+description: "Claude Code 与 Cursor 的深度对比，两种 AI 编程范式的差异与互补"
+order: 2
+section: comparisons
+difficulty: beginner
+readingTime: 12
+pubDate: 2026-02-09
+tags: ["对比", "Cursor", "Claude Code"]
+---
+
+## 工具概述
+
+### Claude Code
+
+Claude Code 是 Anthropic 推出的**命令行 AI 编程智能体**。它在终端中运行，接收自然语言任务描述后，自主读取文件、修改代码、执行命令来完成任务。Claude Code 的核心理念是"给目标，不给步骤"——你描述想要的结果，它自动找到实现路径。
+
+### Cursor
+
+Cursor 是一款基于 VS Code 的 **AI 原生代码编辑器**。它在传统编辑器的基础上深度集成了 AI 能力，包括智能代码补全（Cursor Tab）、对话式编程（Chat）、多文件编辑（Composer）、以及内联代码编辑等功能。Cursor 的核心理念是"在你熟悉的编辑器中增强 AI 能力"。
+
+## 架构对比：CLI vs IDE
+
+这是两者最根本的区别。
+
+### Claude Code：终端优先
+
+Claude Code 运行在命令行中，不绑定任何特定的编辑器。
+
+```text
+# Claude Code 的工作方式
+终端 → 输入任务 → Claude 自主执行 → 查看结果
+
+# 你可以用任何编辑器同时查看和编辑文件
+# Claude Code 不关心你用什么编辑器
+```
+
+优势：
+
+- 编辑器无关，可以搭配任何 IDE 使用
+- 天然适合终端操作（Git、npm、Docker 等）
+- 支持 Headless 模式用于自动化
+- 不受 IDE 插件系统的限制
+
+### Cursor：编辑器优先
+
+Cursor 本身就是一个完整的代码编辑器（基于 VS Code）。
+
+```text
+# Cursor 的工作方式
+编辑器内 → 代码补全 / Chat / Composer → 在编辑器中看到变更
+
+# AI 功能和编辑器深度融合
+# 代码编写、审查、修改都在同一个窗口内完成
+```
+
+优势：
+
+- 代码编写和 AI 辅助在同一界面
+- 可以直观看到 AI 的修改建议（diff 视图）
+- VS Code 扩展生态完全兼容
+- 学习成本低（如果你已经用 VS Code）
+
+<CalloutBox type="info">
+这不是"谁更好"的问题，而是"哪种工作方式更适合你"。喜欢在终端中完成一切的开发者会倾向 Claude Code；喜欢可视化操作的开发者会倾向 Cursor。
+</CalloutBox>
+
+## 核心功能对比
+
+### 代码补全
+
+| 特性 | Claude Code | Cursor |
+|------|-------------|--------|
+| 实时行内补全 | 不支持 | Cursor Tab（核心功能） |
+| 补全速度 | N/A | 极快，毫秒级响应 |
+| 多行补全 | N/A | 支持，智能预测后续多行 |
+| 基于光标位置 | N/A | 支持，理解编辑上下文 |
+
+Cursor Tab 是 Cursor 的招牌功能之一。它不仅能补全当前行，还能预测你接下来要写的多行代码，甚至理解你的编辑意图（比如你在重命名一个变量，它会自动建议修改后续出现的同名变量）。
+
+Claude Code 不提供实时补全功能，它更像是一个任务执行者而非编码提示器。
+
+### 对话式编程
+
+| 特性 | Claude Code | Cursor |
+|------|-------------|--------|
+| 对话界面 | 终端交互 | 侧边栏 Chat |
+| 上下文理解 | 整个代码库 | 当前文件 + @引用 |
+| 代码修改 | 直接修改文件 | 生成 diff 让你审核 |
+| 命令执行 | 可以运行终端命令 | 不直接执行命令 |
+
+Claude Code 的对话更像是"委托一个任务"，Claude 会自主完成；Cursor Chat 更像是"请教一个问题"，得到建议后你自己决定怎么做。
+
+### 多文件编辑：Composer vs Claude Code
+
+这是两者最直接的功能竞争点。
+
+**Claude Code 的多文件编辑**
+
+```text
+> 重构用户认证模块，将 JWT 逻辑从 authService.ts 中抽离到
+> 单独的 jwtUtils.ts，同时更新所有引用。
+```
+
+Claude Code 会：
+1. 读取所有相关文件
+2. 创建新文件
+3. 修改现有文件
+4. 更新 import 语句
+5. 可以运行测试验证
+
+**Cursor Composer 的多文件编辑**
+
+在 Cursor 中按 `Cmd+I` 打开 Composer，输入类似的请求。Composer 会：
+1. 分析需要修改的文件
+2. 生成每个文件的修改 diff
+3. 在编辑器中展示 diff 视图
+4. 等你逐一审核并接受/拒绝
+
+<CalloutBox type="tip">
+Claude Code 的方式更"自主"——它直接修改文件；Cursor Composer 的方式更"可控"——你可以在接受前逐个审查修改。选择哪种取决于你对 AI 的信任度和审查偏好。
+</CalloutBox>
+
+### 上下文处理
+
+| 特性 | Claude Code | Cursor |
+|------|-------------|--------|
+| 自动发现文件 | 支持，可搜索整个项目 | 有限，依赖 @引用和索引 |
+| 手动指定上下文 | Prompt 中提及文件路径 | @file、@folder、@codebase |
+| 持久上下文 | CLAUDE.md | .cursorrules |
+| 上下文窗口 | 由模型决定 | 由模型决定 |
+| 代码库索引 | 按需读取 | 预先索引整个代码库 |
+
+Cursor 使用 `@` 符号来引用上下文，体验非常直观：
+
+```text
+# Cursor Chat 中的上下文引用
+@userService.ts 这个文件中的 createUser 函数有什么问题？
+@src/services 分析这个目录下所有服务的错误处理模式
+@codebase 项目中哪里使用了 deprecated 的 API？
+```
+
+Claude Code 则通过自然语言提及文件路径来建立上下文：
+
+```text
+> 查看 src/services/userService.ts 中的 createUser 函数
+```
+
+两者都能有效建立上下文，Cursor 的 `@` 引用更直观，Claude Code 的文件发现更灵活。
+
+## 定价对比
+
+| 计划 | Claude Code | Cursor |
+|------|-------------|--------|
+| 免费版 | 无 | Cursor Free（有限 AI 使用次数） |
+| 入门版 | Claude Pro $20/月 或 API 按量 | Cursor Pro $20/月 |
+| 团队版 | Claude Team $30/用户/月 | Cursor Business $40/用户/月 |
+| 企业版 | Claude Enterprise 自定义 | Cursor Enterprise 自定义 |
+
+<CalloutBox type="info">
+Cursor Pro 包含每月 500 次"快速"请求（使用最新模型），超出后使用较慢的模型。Claude Code 使用 API Key 时没有次数限制，但按 Token 计费。两种计费模式各有优劣。
+</CalloutBox>
+
+### 隐性成本考量
+
+- **Claude Code**：API 模式下，大量使用可能产生较高费用；但 Pro 订阅有固定月费
+- **Cursor**：如果你已经在使用 VS Code，迁移到 Cursor 几乎零成本；但需要替换你的编辑器
+- **综合考虑**：如果你同时使用两者，总成本是两者相加
+
+## Claude Code 的独特优势
+
+### 终端集成
+
+Claude Code 原生运行在终端中，可以直接执行任何终端命令：
+
+```text
+> 运行 npm test，如果有失败的测试就修复它们
+```
+
+这种能力在 Cursor 中需要手动切换到终端面板，且 AI 不能直接执行命令。
+
+### Headless / CI 模式
+
+Claude Code 可以在无人值守的情况下运行，非常适合 CI/CD 场景：
+
+```bash
+# 在 CI 流水线中使用 Claude Code
+claude -p "审查这个 PR 的代码变更，检查安全问题" --headless
+```
+
+Cursor 作为桌面 IDE，不支持这种无界面自动化模式。
+
+### MCP 生态系统
+
+Claude Code 通过 MCP（Model Context Protocol）协议可以连接各种外部服务：
+
+- 数据库查询工具
+- API 测试工具
+- 项目管理平台（Jira、Linear）
+- 文档搜索工具
+
+Cursor 目前没有类似的可扩展协议。
+
+### 模型灵活性
+
+Claude Code 使用 Anthropic 的 Claude 模型（Sonnet、Opus），你可以选择不同的模型来平衡性能和成本。Cursor 虽然也支持多模型（包括 Claude、GPT-4 等），但在模型选择的灵活性上不如直接使用 API。
+
+## Cursor 的独特优势
+
+### 可视化 IDE 体验
+
+Cursor 提供完整的 IDE 体验，代码高亮、文件树、调试器、Git 面板等一应俱全。对于需要可视化环境的开发者来说，这是不可替代的。
+
+### 内置 Diff 视图
+
+当 AI 建议修改代码时，Cursor 会展示清晰的 diff 视图，让你精确看到每一行的变化：
+
+```text
+# Cursor 中的 diff 视图
+- const result = await fetch(url);        // 删除的行（红色）
++ const result = await fetch(url, {       // 新增的行（绿色）
++   headers: { 'Authorization': token }
++ });
+```
+
+这种可视化审查在 Claude Code 的终端环境中不太容易实现。
+
+### Cursor Tab 智能补全
+
+Cursor Tab 不仅做代码补全，还能理解你的编辑模式：
+
+- 看到你在给变量重命名，自动建议修改后续出现的同名变量
+- 看到你在添加参数，自动建议更新相关的函数调用
+- 看到你在修改数据结构，自动建议更新使用该结构的代码
+
+这种"编辑意图理解"是 Cursor 的独特能力。
+
+### VS Code 扩展兼容
+
+Cursor 基于 VS Code 构建，完全兼容 VS Code 的扩展生态。你现有的所有 VS Code 设置、主题、扩展都可以无缝迁移到 Cursor。
+
+## 选择建议
+
+### 选 Claude Code 如果你：
+
+- 习惯在终端中工作，喜欢命令行效率
+- 经常需要 AI 自主完成复杂的多步骤任务
+- 有 CI/CD 自动化的需求
+- 想要通过 MCP 连接外部服务
+- 不想绑定到特定的编辑器
+- 偏好"委托式"的 AI 协作方式
+
+### 选 Cursor 如果你：
+
+- 偏好可视化的 IDE 工作环境
+- 重度依赖实时代码补全来提高编写速度
+- 希望在修改前直观审查 AI 的每一个变更
+- 已经是 VS Code 用户，希望无缝升级 AI 能力
+- 喜欢 `@` 引用的直观上下文管理方式
+- 偏好"协作式"的 AI 使用方式
+
+### 两者互补使用
+
+Claude Code 和 Cursor 的组合是一个非常强大的工作流：
+
+```text
+1. 使用 Claude Code 进行项目级的任务
+   - 初始化项目结构
+   - 跨模块重构
+   - CI/CD 配置
+   - 代码审查和分析
+
+2. 使用 Cursor 进行日常编码
+   - 利用 Cursor Tab 加速代码编写
+   - 使用 Composer 进行有针对性的多文件修改
+   - 通过 Chat 快速获取代码解释
+
+3. 根据任务特点灵活切换
+   - 需要运行命令验证？→ Claude Code
+   - 需要查看 diff 精确审查？→ Cursor
+   - 需要无人值守自动化？→ Claude Code
+   - 需要实时编码辅助？→ Cursor
+```
+
+<CalloutBox type="tip">
+很多高效的开发者采用"双工具"策略：在 Cursor 中编写代码的同时，在另一个终端窗口中运行 Claude Code 处理后台任务。两者互不干扰，各取所长。
+</CalloutBox>
+
+## 功能对照总结
+
+| 维度 | Claude Code | Cursor |
+|------|-------------|--------|
+| 运行环境 | 终端 CLI | VS Code 基础 IDE |
+| 核心模式 | 智能体（Agentic） | 编辑器增强 |
+| 代码补全 | 不支持 | Cursor Tab（极强） |
+| 多文件编辑 | 自主执行 | Composer + Diff 审查 |
+| 命令执行 | 原生支持 | 不支持 |
+| CI/CD | Headless 模式 | 不支持 |
+| 上下文管理 | CLAUDE.md + 自然语言 | .cursorrules + @引用 |
+| 可扩展性 | MCP 协议 | VS Code 扩展 |
+| 视觉体验 | 纯文本终端 | 完整 IDE GUI |
+| 学习曲线 | 中等（需了解 CLI） | 低（VS Code 用户无缝过渡） |
+| 模型支持 | Claude 系列 | 多模型（Claude/GPT/等） |
+
+## 小结
+
+Claude Code 和 Cursor 代表了 AI 编程工具的两种不同路径：
+
+- **Claude Code** 走的是"AI 智能体"路线——强调自主性、终端集成和自动化能力
+- **Cursor** 走的是"AI 增强 IDE"路线——强调编辑器体验、实时补全和可视化审查
+
+两者都是优秀的工具，选择哪个主要取决于你的工作习惯和具体需求。对于追求极致效率的开发者来说，同时使用两者、各取所长，可能是当前最佳的 AI 编程工具组合。

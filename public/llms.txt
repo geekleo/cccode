@@ -1,0 +1,35 @@
+# Claude Code 教程
+
+> 从入门到精通，全面掌握 Claude Code AI 编程助手。中文教程网站，托管于 cccode.dev。
+
+Claude Code 是 Anthropic 推出的官方 AI 编程助手，运行在终端中，能理解整个代码库上下文，帮助开发者更高效地编写、调试和重构代码。本站提供从入门到高级的完整中文教程。
+
+## 学习路径
+
+- [入门篇](https://cccode.dev/beginner): 从安装到第一次对话，快速上手 Claude Code。包含安装配置、基础命令、订阅方案、5分钟快速入门。
+- [进阶篇](https://cccode.dev/intermediate): 掌握 CLAUDE.md 配置、Plan Mode 规划模式、上下文管理、Hooks 钩子、Sub-agent 使用等核心功能。
+- [高级篇](https://cccode.dev/advanced): MCP Server 协议与实战、插件开发、多 Agent 协作、GitHub Actions / GitLab CI/CD 集成、脚本自动化。
+- [实战篇](https://cccode.dev/practical): 完整项目实战——构建 Web 应用、CLI 工具、API 服务，以及遗留代码重构和复杂 Bug 调试。
+
+## 参考手册
+
+- [多平台使用](https://cccode.dev/platforms): 终端、VS Code、JetBrains IDE、Web 版、Slack 集成全覆盖。
+- [最佳实践](https://cccode.dev/best-practices): Prompt 技巧、上下文优化、Token 管理、何时清除对话。
+- [工具对比](https://cccode.dev/comparisons): Claude Code vs GitHub Copilot、vs Cursor、综合对比分析。
+
+## 速查目录
+
+- [MCP 插件目录](https://cccode.dev/mcp-directory): 18+ MCP Server 分类索引，涵盖文件系统、数据库、云服务、开发工具等类别。
+- [Skill 命令目录](https://cccode.dev/skill-directory): 41 个内置 Slash 命令与社区 Skill 索引，按类别（会话管理、开发工具、配置诊断等）分类。
+
+## 社区与工具
+
+- [学习进度](https://cccode.dev/progress): 跟踪你的学习进度，查看已完成和待学习的章节。
+- [社区交流](https://cccode.dev/community): GitHub Discussions 讨论区，与其他 Claude Code 用户交流。
+- [资源合集](https://cccode.dev/resources): 精选学习资源、官方文档链接、视频教程。
+- [更新日志](https://cccode.dev/changelog): 网站内容更新记录。
+
+## 外部链接
+
+- [Claude Code 官方文档](https://docs.anthropic.com/en/docs/claude-code): Anthropic 官方英文文档
+- [Claude Code GitHub](https://github.com/anthropics/claude-code): 开源仓库

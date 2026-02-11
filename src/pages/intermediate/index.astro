@@ -1,0 +1,11 @@
+---
+import { getCollection } from 'astro:content';
+import SectionLayout from '@layouts/SectionLayout.astro';
+import { sections } from '@lib/navigation';
+
+const section = sections.find((s) => s.collectionName === 'intermediate')!;
+const lessons = (await getCollection('intermediate' as any, ({ data }: any) => !data.draft))
+  .sort((a: any, b: any) => a.data.order - b.data.order);
+---
+
+<SectionLayout section={section} lessons={lessons} />

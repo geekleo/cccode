@@ -1,0 +1,423 @@
+---
+title: "CLAUDE.md 进阶技巧"
+description: "掌握 CLAUDE.md 的高级用法，包括多层级配置、文件引用、反模式以及不同项目类型的最佳实践"
+order: 2
+section: intermediate
+difficulty: intermediate
+readingTime: 12
+pubDate: 2026-02-09
+tags: ["CLAUDE.md", "进阶", "最佳实践", "编码规范"]
+---
+
+## 编写高效的 CLAUDE.md 指令
+
+CLAUDE.md 的质量直接决定了 Claude Code 的表现。模糊的指令会导致模糊的输出，而精确的指令能让 Claude 像一个熟悉项目的资深开发者一样工作。
+
+### 要具体，不要抽象
+
+对比以下两种写法：
+
+```markdown
+<!-- 不好的写法 -->
+写好的代码，遵循最佳实践。
+
+<!-- 好的写法 -->
+- 所有异步函数必须使用 try-catch 包裹，错误统一通过 src/utils/logger.ts 的 logError() 记录
+- React 组件 props 超过 3 个时，必须定义独立的 interface，命名格式为 {ComponentName}Props
+- API 响应必须使用 src/types/api.ts 中定义的泛型 ApiResponse<T> 包装
+```
+
+### 给出正反示例
+
+在关键规范后附上示例，Claude 会更好地理解你的意图：
+
+```markdown
+## 命名规范
+
+文件命名使用 kebab-case，组件命名使用 PascalCase。
+
+正确示例:
+- 文件: user-profile-card.tsx
+- 组件: UserProfileCard
+
+错误示例:
+- 文件: UserProfileCard.tsx
+- 文件: userProfileCard.tsx
+```
+
+### 使用优先级标记
+
+当指令较多时，用优先级帮助 Claude 做决策：
+
+```markdown
+## 代码质量优先级（从高到低）
+
+1. 类型安全 - 绝对不允许使用 any 或 ts-ignore
+2. 错误处理 - 所有可能失败的操作必须有错误处理
+3. 可读性 - 变量名要有意义，函数不超过 30 行
+4. 性能 - 避免不必要的重渲染和重复计算
+```
+
+## 多层级 CLAUDE.md 配置
+
+对于大型项目（尤其是 monorepo），多层级 CLAUDE.md 能让配置更精确。
+
+### Monorepo 的配置结构
+
+```text
+my-monorepo/
+  CLAUDE.md                    # 全局规范
+  packages/
+    web-app/
+      CLAUDE.md                # Web 应用特定规范
+      src/
+    api-server/
+      CLAUDE.md                # API 服务特定规范
+      src/
+    shared-utils/
+      CLAUDE.md                # 工具库特定规范
+      src/
+```
+
+根目录 CLAUDE.md 放通用规范：
+
+```markdown
+# MyProject Monorepo
+
+## 通用规范
+- 使用 pnpm workspace 管理依赖
+- 共享类型定义在 packages/shared-types 中
+- 所有包使用统一的 TypeScript 配置 (继承根目录 tsconfig.base.json)
+- Git commit message 遵循 Conventional Commits 格式
+```
+
+子包 CLAUDE.md 放特定规范：
+
+```markdown
+# Web App (packages/web-app)
+
+## 框架特定规范
+- 使用 Next.js App Router，不使用 Pages Router
+- 页面组件放在 app/ 目录，可复用组件放在 components/ 目录
+- 服务端组件优先，仅在需要交互时使用 'use client'
+- 使用 next/image 替代原生 img 标签
+```
+
+### 层级间的协作
+
+根目录的 CLAUDE.md 设定全局基调，子目录的 CLAUDE.md 处理特定场景。避免在子目录中重复根目录的内容，也避免子目录指令与根目录矛盾。
+
+## 引用外部文件
+
+CLAUDE.md 支持通过特定语法引用项目中的其他文件，避免在 CLAUDE.md 中复制大量内容。
+
+### 引用语法
+
+使用以下语法让 Claude 在需要时读取指定文件：
+
+```markdown
+## 架构参考
+
+详细的架构设计见 docs/architecture.md 文件。
+
+## API 规范
+
+API 设计遵循 docs/api-guidelines.md 中的规范。
+```
+
+你也可以直接告诉 Claude 在执行特定任务前先读取某些文件：
+
+```markdown
+## 工作流程指引
+
+- 添加新 API 端点前，先阅读 docs/api-guidelines.md
+- 修改数据库 schema 前，先阅读 docs/database-conventions.md
+- 创建新组件前，先阅读 src/components/README.md 了解组件规范
+```
+
+这种方式比直接把所有内容塞进 CLAUDE.md 更好，因为它让 CLAUDE.md 保持简洁，同时 Claude 在需要时仍然能获取详细信息。
+
+## 常见的 CLAUDE.md 章节
+
+以下是经过实践验证的高效 CLAUDE.md 章节结构：
+
+### 技术栈与依赖
+
+```markdown
+## 技术栈
+
+- Runtime: Node.js 20 LTS
+- 语言: TypeScript 5.3 (strict: true)
+- 框架: Express.js 4.x
+- ORM: Prisma 5.x
+- 数据库: PostgreSQL 16
+- 缓存: Redis 7
+- 消息队列: BullMQ
+- 测试: Jest + Supertest
+```
+
+### 项目约定
+
+```markdown
+## 项目约定
+
+### 目录结构
+- src/modules/{module-name}/ - 业务模块，每个模块包含 controller, service, repository, dto, entity
+- src/common/ - 通用工具、中间件、装饰器
+- src/config/ - 配置文件，使用 env-schema 验证环境变量
+
+### 错误处理
+- 业务错误继承 AppError 基类 (src/common/errors/app-error.ts)
+- Controller 层不直接 catch 错误，统一由全局错误中间件处理
+- 所有错误必须包含 errorCode 和 message
+
+### 日志
+- 使用 src/common/logger.ts 封装的 Winston logger
+- 日志级别: error > warn > info > debug
+- 生产环境只输出 info 及以上级别
+```
+
+### 测试要求
+
+```markdown
+## 测试规范
+
+- 单元测试文件与源文件同目录，命名为 {filename}.test.ts
+- Service 层必须有单元测试，覆盖率要求 > 80%
+- API 端点必须有集成测试，放在 test/integration/ 目录
+- 使用 factory 模式创建测试数据 (test/factories/)
+- Mock 外部服务，不要在测试中调用真实 API
+```
+
+### 常用命令
+
+```markdown
+## 常用命令
+
+- npm run dev          - 启动开发服务器 (热重载)
+- npm run build        - TypeScript 编译
+- npm run test         - 运行所有测试
+- npm run test:watch   - 监听模式运行测试
+- npm run test:cov     - 运行测试并生成覆盖率报告
+- npm run lint         - ESLint 检查
+- npm run lint:fix     - ESLint 自动修复
+- npm run db:migrate   - 执行数据库迁移
+- npm run db:seed      - 填充测试数据
+- npm run db:studio    - 打开 Prisma Studio
+```
+
+### 部署相关
+
+```markdown
+## 部署
+
+- 分支策略: main (生产), develop (开发), feature/* (功能分支)
+- CI/CD: GitHub Actions，配置文件在 .github/workflows/
+- 部署目标: AWS ECS (Fargate)
+- 环境变量通过 AWS Parameter Store 管理，不要硬编码
+```
+
+## CLAUDE.md 反模式
+
+以下是应该避免的做法：
+
+### 反模式 1：过于模糊
+
+```markdown
+<!-- 不要这样写 -->
+写干净的代码。
+遵循最佳实践。
+确保代码质量。
+```
+
+这些指令几乎没有信息量，Claude 无法从中获得任何具体的指导。
+
+### 反模式 2：过长无重点
+
+一个超过 500 行的 CLAUDE.md 反而会降低效果。Claude 需要处理过多的上下文，关键信息容易被淹没。保持 CLAUDE.md 在 100-200 行之间是比较理想的。如果内容确实很多，使用文件引用把详细内容分散到其他文档中。
+
+### 反模式 3：自相矛盾
+
+```markdown
+<!-- 不要这样写 -->
+- 所有函数使用 async/await 风格
+- （后面某处又写）回调风格更高效，优先使用回调
+```
+
+矛盾的指令会让 Claude 无所适从，输出不稳定。
+
+### 反模式 4：包含过时信息
+
+```markdown
+<!-- 不要这样写 -->
+注意：我们正在从 Webpack 迁移到 Vite（已于三个月前完成）
+```
+
+过时的信息不仅占用上下文空间，还可能误导 Claude。定期清理 CLAUDE.md 中不再适用的内容。
+
+### 反模式 5：列出所有文件
+
+```markdown
+<!-- 不要这样写 -->
+项目文件列表：
+- src/index.ts
+- src/app.ts
+- src/routes/user.ts
+- src/routes/product.ts
+- ... (列出几百个文件)
+```
+
+Claude Code 能够自己探索文件系统，不需要你手动列出所有文件。只列出关键文件和目录即可。
+
+## 不同项目类型的 CLAUDE.md 示例
+
+### React 前端项目
+
+```markdown
+# ShopFront - 电商前端
+
+## 技术栈
+- React 18 + TypeScript
+- Vite 构建
+- TanStack Router (文件路由)
+- TanStack Query (数据请求)
+- Tailwind CSS + shadcn/ui
+- Zustand (全局状态)
+
+## 组件规范
+- 组件按功能模块放在 src/features/{feature}/components/
+- 通用 UI 组件放在 src/components/ui/ (基于 shadcn/ui)
+- 页面组件放在 src/routes/
+- 每个组件必须导出 TypeScript 类型的 Props interface
+- 使用 forwardRef 包装需要暴露 ref 的组件
+
+## 状态管理
+- 服务端状态: TanStack Query (不要用 Zustand 管理 API 数据)
+- 全局 UI 状态: Zustand (主题、侧边栏开关等)
+- 表单状态: React Hook Form + Zod 验证
+- 本地状态: useState/useReducer
+
+## 样式规范
+- 使用 Tailwind CSS utility classes，不写自定义 CSS
+- 响应式断点: sm(640px), md(768px), lg(1024px), xl(1280px)
+- 颜色使用 CSS 变量 (定义在 src/styles/globals.css)
+```
+
+### Python 后端项目
+
+```markdown
+# DataPipe - 数据处理服务
+
+## 技术栈
+- Python 3.12
+- 框架: FastAPI
+- ORM: SQLAlchemy 2.0 (async)
+- 数据库: PostgreSQL
+- 任务队列: Celery + Redis
+- 包管理: Poetry
+
+## 代码规范
+- 类型标注: 所有函数参数和返回值必须有类型标注
+- 使用 Pydantic v2 模型做数据验证
+- 异步优先: 数据库操作和外部调用使用 async/await
+- 依赖注入: 使用 FastAPI 的 Depends 机制
+
+## 目录结构
+- app/api/v1/ - API 路由
+- app/models/ - SQLAlchemy 模型
+- app/schemas/ - Pydantic 模型
+- app/services/ - 业务逻辑
+- app/repositories/ - 数据访问层
+- app/core/ - 配置、安全、依赖注入
+
+## 测试
+- pytest + pytest-asyncio
+- 测试文件在 tests/ 目录，镜像 app/ 目录结构
+- 使用 factory-boy 创建测试数据
+- 运行测试: poetry run pytest
+- 运行带覆盖率: poetry run pytest --cov=app
+```
+
+### Go 微服务项目
+
+```markdown
+# OrderService - 订单微服务
+
+## 技术栈
+- Go 1.22
+- Web 框架: Gin
+- ORM: GORM
+- 数据库: MySQL 8
+- 消息队列: Kafka (segmentio/kafka-go)
+- gRPC: 服务间通信
+
+## 代码规范
+- 遵循 Effective Go 和 uber-go/guide
+- 错误处理: 使用 fmt.Errorf 包装错误，包含上下文信息
+- 日志: 使用 slog 结构化日志
+- 不使用 init() 函数，依赖在 main 中显式初始化
+- 接口定义在使用方，不在实现方
+
+## 目录结构 (遵循 Standard Go Project Layout)
+- cmd/server/ - 主程序入口
+- internal/handler/ - HTTP/gRPC 处理器
+- internal/service/ - 业务逻辑
+- internal/repository/ - 数据访问
+- internal/model/ - 数据模型
+- pkg/ - 可被外部引用的公共包
+
+## 常用命令
+- go run cmd/server/main.go - 启动服务
+- go test ./... - 运行所有测试
+- go test -race ./... - 竞态检测
+- make proto - 编译 protobuf 文件
+- make migrate-up - 执行数据库迁移
+```
+
+## 使用 CLAUDE.md 强制执行编码标准
+
+CLAUDE.md 最强大的用途之一是让 Claude Code 自动遵循你的编码标准。
+
+### 明确的 Do 和 Don't
+
+```markdown
+## 编码标准
+
+### 必须遵守 (Do)
+- 新增 API 端点必须同时编写 OpenAPI 文档注释
+- 数据库查询必须使用参数化查询，防止 SQL 注入
+- 所有用户输入必须经过验证和清洗
+- 敏感操作必须记录审计日志
+
+### 禁止事项 (Don't)
+- 不要在代码中硬编码密钥、密码或连接字符串
+- 不要使用 console.log 调试，使用项目的 Logger 工具
+- 不要直接操作 DOM，使用 React 的方式管理 UI
+- 不要在组件中直接调用 fetch，使用 API service 层
+```
+
+### 代码审查清单
+
+```markdown
+## 代码生成检查清单
+
+Claude 在生成代码后，请自行检查以下内容：
+1. 所有新函数是否有错误处理？
+2. 是否有类型标注缺失？
+3. 是否需要添加单元测试？
+4. 是否有潜在的安全问题？
+5. 命名是否符合项目约定？
+```
+
+这样 Claude 在生成代码时会主动执行自检，减少返工。
+
+## 小结
+
+高效的 CLAUDE.md 是 Claude Code 发挥最大价值的关键。核心要点：
+
+- **具体精确**：给出明确的规则和示例，避免模糊指令
+- **分层管理**：利用多层级 CLAUDE.md 管理大型项目
+- **引用外部文件**：保持 CLAUDE.md 简洁，详细内容放在专门的文档中
+- **避免反模式**：不要太长、太模糊、自相矛盾或包含过时信息
+- **因项目而异**：不同类型的项目需要不同侧重点的 CLAUDE.md
+- **持续迭代**：随着项目发展，定期更新和优化 CLAUDE.md 内容

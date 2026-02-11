@@ -1,0 +1,324 @@
+---
+title: "Prompt 技巧"
+description: "掌握与 Claude Code 对话的高效 Prompt 技巧，从基础到进阶的完整指南"
+order: 1
+section: best-practices
+difficulty: intermediate
+readingTime: 12
+pubDate: 2026-02-09
+tags: ["Prompt", "技巧", "最佳实践"]
+---
+
+## 为什么 Prompt 很重要
+
+Claude Code 的输出质量在很大程度上取决于你给它的指令质量。一个清晰、具体的 Prompt 能让 Claude 准确理解你的意图，快速完成任务；而一个模糊的 Prompt 可能导致反复沟通、浪费 Token，甚至得到错误的结果。
+
+掌握 Prompt 技巧不仅能提高效率，还能显著降低使用成本。本文将系统地介绍在 Claude Code 中编写高效 Prompt 的方法。
+
+## 编写清晰具体的 Prompt
+
+最基本的原则是：**告诉 Claude 你想要什么，而不是让它猜**。
+
+### 模糊 vs 具体
+
+```text
+# 模糊的 Prompt（不推荐）
+> 帮我修一下登录功能
+
+# 具体的 Prompt（推荐）
+> 修复 src/auth/login.ts 中的登录函数，当用户输入错误密码时应该返回 401 状态码，
+> 但目前返回的是 500。错误发生在第 45 行的 try-catch 块中。
+```
+
+具体的 Prompt 应该包含：
+
+- **目标**：你想让 Claude 做什么
+- **位置**：涉及哪些文件、函数、行号
+- **背景**：当前状态和期望状态的差异
+- **约束**：任何限制条件或注意事项
+
+### 提供充足的上下文
+
+Claude Code 能够读取你的代码库，但主动提供关键上下文可以减少它的搜索时间：
+
+```text
+# 提供文件和函数上下文
+> 查看 src/utils/date.ts 中的 formatDate 函数，它在处理时区转换时有 bug。
+> 当传入 UTC+8 的时间时，输出结果少了 8 小时。
+
+# 提供技术栈上下文
+> 这个项目使用 Next.js 14 App Router，我需要在 app/dashboard/page.tsx 中
+> 添加一个服务端组件来获取用户数据。请使用项目已有的 src/lib/api.ts 中的
+> fetchUser 函数。
+```
+
+<CalloutBox type="tip">
+如果你已经配置了 CLAUDE.md，很多项目级别的上下文会自动提供给 Claude，你只需要在 Prompt 中补充任务特定的上下文即可。
+</CalloutBox>
+
+## 结构化 Prompt
+
+对于复杂任务，使用编号步骤来组织你的指令，能帮助 Claude 按照正确的顺序执行：
+
+```text
+> 请按以下步骤重构用户模块：
+> 1. 先阅读 src/models/user.ts 和 src/services/userService.ts 的现有代码
+> 2. 将 userService.ts 中的数据库查询逻辑提取到新的 src/repositories/userRepo.ts
+> 3. 更新 userService.ts，使其调用 userRepo 中的方法
+> 4. 确保所有现有的导入路径都更新正确
+> 5. 运行 npm test 确认没有破坏现有测试
+```
+
+结构化 Prompt 的好处：
+
+- Claude 能清楚地知道执行顺序
+- 每个步骤都可以验证
+- 减少遗漏关键步骤的可能
+- 如果某一步出错，容易定位问题
+
+### 多文件操作的结构化
+
+当需要同时修改多个文件时，结构化尤其重要：
+
+```text
+> 我需要添加一个新的 API 端点 /api/orders，请：
+> 1. 在 src/types/order.ts 中定义 Order 接口
+> 2. 在 src/repositories/orderRepo.ts 中实现数据库查询
+> 3. 在 src/services/orderService.ts 中实现业务逻辑
+> 4. 在 src/routes/orders.ts 中定义路由和控制器
+> 5. 在 src/routes/index.ts 中注册新路由
+> 6. 添加对应的单元测试到 tests/services/orderService.test.ts
+```
+
+## 使用否定指令
+
+告诉 Claude 什么**不要做**和告诉它什么要做同样重要。否定指令可以避免常见的意外修改：
+
+```text
+> 重构 src/components/Dashboard.tsx 的状态管理逻辑，
+> 将 useState 替换为 useReducer。
+> 注意：不要修改组件的 JSX 结构和样式，不要改变 props 接口，
+> 不要修改 src/components/DashboardHeader.tsx 文件。
+```
+
+常见的否定指令场景：
+
+- **保护特定文件**：`不要修改 config/database.ts`
+- **限定修改范围**：`只修改 src/utils/ 目录下的文件`
+- **禁止特定做法**：`不要使用 any 类型`、`不要删除现有注释`
+- **保持接口稳定**：`不要改变函数的参数和返回值类型`
+
+## 迭代式 Prompt
+
+复杂任务很少能一次完成。学会在对话中逐步推进是一项关键技能。
+
+### 从大到小的迭代
+
+```text
+# 第一轮：了解现状
+> 分析 src/services/ 目录下所有服务文件的代码结构，
+> 告诉我哪些地方存在重复的错误处理逻辑。
+
+# 第二轮：制定方案
+> 基于你的分析，设计一个统一的错误处理方案。
+> 先不要写代码，只告诉我你的设计思路。
+
+# 第三轮：逐步实施
+> 方案看起来不错。先实现第一步：创建 src/utils/errorHandler.ts，
+> 包含统一的错误处理函数。
+
+# 第四轮：继续推进
+> 很好。现在把 src/services/userService.ts 中的错误处理
+> 替换为新的 errorHandler。
+```
+
+### 基于反馈的迭代
+
+当 Claude 的输出不完全符合预期时，提供具体的反馈：
+
+```text
+# 而不是说"这不对，重来"，给出具体反馈：
+> 函数逻辑基本正确，但有两个问题需要调整：
+> 1. 第 23 行的错误消息应该使用中文
+> 2. 缺少对 null 参数的边界检查，请在函数开头添加
+```
+
+<CalloutBox type="warning">
+避免在迭代过程中完全推翻之前的方向。如果你发现当前方向完全错误，建议使用 `/clear` 重新开始，而不是在已经混乱的上下文中继续。
+</CalloutBox>
+
+## 在 Prompt 中使用示例
+
+当你需要特定的输出格式或编码风格时，提供示例是最有效的沟通方式：
+
+```text
+> 为 src/models/ 目录下的所有模型文件添加 JSDoc 注释。
+> 参考以下风格：
+>
+> /**
+>  * 用户数据模型
+>  * @property {string} id - 用户唯一标识
+>  * @property {string} email - 用户邮箱地址
+>  * @property {Date} createdAt - 创建时间
+>  */
+> interface User {
+>   id: string;
+>   email: string;
+>   createdAt: Date;
+> }
+```
+
+示例不仅传达了格式要求，还隐含了风格偏好（如注释语言、描述详细程度等），Claude 会模仿你给出的范例。
+
+## 领域特定的 Prompt 技巧
+
+不同开发领域有不同的最佳 Prompt 策略。
+
+### 前端开发
+
+```text
+> 创建一个 ProductCard 组件（React + TypeScript）：
+> - 接收 props: { product: Product; onAddToCart: (id: string) => void }
+> - 使用 Tailwind CSS 样式，响应式布局
+> - 包含商品图片、名称、价格、加入购物车按钮
+> - 图片使用 next/image 组件并支持 lazy loading
+> - 价格格式化为人民币（¥），保留两位小数
+```
+
+### 后端开发
+
+```text
+> 在 src/routes/users.ts 中添加一个 PATCH /users/:id 端点：
+> - 使用 Zod 验证请求体（只允许更新 name 和 email 字段）
+> - 验证邮箱格式和唯一性
+> - 使用事务更新数据库
+> - 返回更新后的用户对象（排除 password 字段）
+> - 添加适当的错误处理（404、409、422）
+```
+
+### 数据处理
+
+```text
+> 编写一个 Python 脚本处理 data/sales.csv：
+> - 使用 pandas 读取 CSV 文件
+> - 按月份聚合销售额
+> - 计算环比增长率
+> - 生成折线图保存到 output/monthly_sales.png
+> - 将汇总数据导出为 output/summary.xlsx
+```
+
+## 常用 Prompt 模式
+
+以下是一些在 Claude Code 中特别有效的 Prompt 模式。
+
+### "先分析再行动"模式
+
+```text
+> 先阅读 src/api/ 目录下的所有文件，理解现有的 API 架构，
+> 然后告诉我添加一个新的 /api/notifications 端点需要创建哪些文件、
+> 修改哪些文件。确认方案后我们再开始编码。
+```
+
+这个模式让 Claude 先理解全局，避免盲目修改。
+
+### "参照现有"模式
+
+```text
+> 参照 src/services/userService.ts 的代码结构和风格，
+> 创建一个新的 src/services/orderService.ts。
+> 保持相同的错误处理模式、日志记录方式和命名风格。
+```
+
+这个模式确保新代码与项目风格一致。
+
+### "测试驱动"模式
+
+```text
+> 先为 src/utils/validator.ts 中的 validateEmail 函数编写测试用例，
+> 覆盖正常邮箱、无效格式、空值、特殊字符等场景。
+> 然后根据测试用例实现该函数，确保所有测试通过。
+```
+
+### "代码审查"模式
+
+```text
+> 审查 src/auth/middleware.ts 的代码，重点关注：
+> 1. 安全漏洞（如 JWT 验证是否严格）
+> 2. 错误处理是否完善
+> 3. 边界条件是否覆盖
+> 4. 是否有性能问题
+> 给出具体的改进建议和修改后的代码。
+```
+
+## Prompt 反模式：应该避免的做法
+
+了解常见的反模式可以帮助你避免低效的 Prompt。
+
+### 反模式一：过于模糊
+
+```text
+# 不好的 Prompt
+> 代码有 bug，帮我修一下
+
+# 问题：Claude 不知道哪个文件、什么 bug、期望什么行为
+```
+
+### 反模式二：过度详细
+
+```text
+# 不好的 Prompt
+> 请打开 src/utils.ts 文件，找到第 15 行，将 const 改为 let，
+> 然后在第 16 行后面添加一个空行，再在第 17 行写 console.log...
+
+# 问题：像这样逐行指令式的 Prompt 不如直接告诉 Claude 你的目标，
+# 让它自己决定实现方式
+```
+
+### 反模式三：自相矛盾
+
+```text
+# 不好的 Prompt
+> 用最简单的方式实现，要覆盖所有边界条件，
+> 代码要尽量短，但要有详细的注释和错误处理
+
+# 问题："最简单"和"覆盖所有边界条件"、"代码尽量短"和"详细注释"是矛盾的
+```
+
+### 反模式四：一次性要求太多
+
+```text
+# 不好的 Prompt
+> 重构整个项目，添加 TypeScript 类型，升级所有依赖到最新版，
+> 添加单元测试，配置 CI/CD，部署到 AWS
+
+# 问题：任务太大太杂，应该拆分为多轮对话逐步完成
+```
+
+<CalloutBox type="info">
+好的 Prompt 遵循一个简单原则：**一次聚焦一件事，说清楚目标和约束**。如果你发现一个 Prompt 需要写很长才能说清楚，那很可能需要拆分成多个步骤。
+</CalloutBox>
+
+## 实用技巧总结
+
+| 技巧 | 说明 | 示例 |
+|------|------|------|
+| 指明文件路径 | 减少 Claude 搜索时间 | `修改 src/auth/login.ts` |
+| 编号步骤 | 明确执行顺序 | `1. 先读取... 2. 然后修改...` |
+| 否定指令 | 防止意外修改 | `不要修改 tests/ 目录` |
+| 提供示例 | 传达风格要求 | `参照以下格式：...` |
+| 先分析后执行 | 避免盲目修改 | `先阅读代码，告诉我你的方案` |
+| 参照现有代码 | 保持风格统一 | `参照 userService.ts 的风格` |
+| 明确约束条件 | 限定范围和规则 | `使用 TypeScript strict mode` |
+
+## 小结
+
+高效的 Prompt 是使用 Claude Code 的核心技能。记住以下关键原则：
+
+- **具体明确**：包含文件路径、函数名、行号等具体信息
+- **结构化表达**：复杂任务使用编号步骤
+- **善用否定**：明确告诉 Claude 不要做什么
+- **迭代推进**：复杂任务分步完成，基于反馈调整
+- **提供示例**：用例子传达格式和风格要求
+- **避免反模式**：不要过于模糊、过度详细、自相矛盾或一次要求太多
+
+随着使用经验的积累，你会逐渐建立起自己的 Prompt 模式库，让与 Claude Code 的协作越来越高效。

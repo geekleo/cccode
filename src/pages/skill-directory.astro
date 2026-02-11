@@ -1,0 +1,280 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+
+interface Skill {
+  name: string;
+  command: string;
+  description: string;
+  tags: string[];
+  featured?: boolean;
+}
+
+interface SkillCategory {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  skills: Skill[];
+}
+
+const categories: SkillCategory[] = [
+  {
+    id: 'session',
+    icon: '💬',
+    title: '会话管理',
+    description: '管理对话、会话和上下文',
+    skills: [
+      { name: '清除会话', command: '/clear', description: '清空当前对话历史，重新开始新会话', tags: ['会话', '重置'], featured: true },
+      { name: '压缩上下文', command: '/compact', description: '智能压缩对话历史，保留关键信息，释放上下文空间。支持传入指令控制压缩重点', tags: ['上下文', '优化'], featured: true },
+      { name: '重命名会话', command: '/rename', description: '为当前会话设置有意义的名称，方便后续查找', tags: ['会话', '管理'] },
+      { name: '恢复会话', command: '/resume', description: '通过 ID 或名称恢复之前的会话，或打开会话选择器', tags: ['会话', '恢复'] },
+      { name: '回退操作', command: '/rewind', description: '回退对话或代码更改，支持从选定消息重新开始', tags: ['会话', '撤销'] },
+      { name: '导出对话', command: '/export', description: '将当前对话导出为文件或复制到剪贴板', tags: ['会话', '导出'] },
+      { name: '复制回复', command: '/copy', description: '复制上一条 AI 回复内容到剪贴板', tags: ['工具', '剪贴板'] },
+    ],
+  },
+  {
+    id: 'dev',
+    icon: '🛠️',
+    title: '开发工具',
+    description: '代码审查、提交、PR 等开发流程',
+    skills: [
+      { name: '代码提交', command: '/commit', description: '分析代码变更，自动生成符合规范的 commit message 并提交', tags: ['git', '提交'], featured: true },
+      { name: '创建 PR', command: '/pr', description: '创建 Pull Request，自动生成标题和描述', tags: ['git', 'PR'], featured: true },
+      { name: '代码审查', command: '/review', description: '对当前代码进行多维度审查，发现潜在问题', tags: ['代码质量', '审查'] },
+      { name: '报告 Bug', command: '/bug', description: '生成结构化的 Bug 报告', tags: ['调试', '报告'] },
+      { name: '初始化项目', command: '/init', description: '初始化项目 CLAUDE.md 指导文件和文档', tags: ['项目', '初始化'], featured: true },
+      { name: '编辑记忆', command: '/memory', description: '直接编辑 CLAUDE.md 记忆文件，管理项目知识', tags: ['项目', '配置'] },
+      { name: '规划模式', command: '/plan', description: '进入规划模式，先分析再变更，适合复杂任务', tags: ['规划', '分析'] },
+    ],
+  },
+  {
+    id: 'config',
+    icon: '⚙️',
+    title: '配置与诊断',
+    description: '系统设置、模型切换、健康检查',
+    skills: [
+      { name: '设置面板', command: '/config', description: '打开设置界面，配置权限、主题、工具等', tags: ['设置', '配置'], featured: true },
+      { name: '系统状态', command: '/status', description: '查看版本、连接账户、模型和系统状态', tags: ['状态', '诊断'] },
+      { name: '健康检查', command: '/doctor', description: '检查 Claude Code 安装状态，诊断环境问题', tags: ['诊断', '修复'], featured: true },
+      { name: '切换模型', command: '/model', description: '选择或切换 AI 模型（Haiku / Sonnet / Opus）', tags: ['模型', '切换'] },
+      { name: '权限管理', command: '/permissions', description: '查看或更新工具权限设置', tags: ['安全', '权限'] },
+      { name: 'MCP 管理', command: '/mcp', description: '管理 MCP Server 连接和 OAuth 认证', tags: ['MCP', '插件'] },
+      { name: '主题切换', command: '/theme', description: '更改 Claude Code 颜色主题', tags: ['界面', '主题'] },
+      { name: '状态栏', command: '/statusline', description: '设置 Claude Code 状态栏 UI 显示', tags: ['界面', '状态栏'] },
+      { name: 'Vim 模式', command: '/vim', description: '启用 Vim 风格编辑模式', tags: ['编辑', '快捷键'] },
+    ],
+  },
+  {
+    id: 'stats',
+    icon: '📊',
+    title: '用量与统计',
+    description: '查看 Token 消耗、费用和使用统计',
+    skills: [
+      { name: 'Token 费用', command: '/cost', description: '显示当前会话的 Token 使用量和费用统计', tags: ['费用', 'Token'], featured: true },
+      { name: '上下文可视化', command: '/context', description: '以彩色网格可视化当前上下文使用情况', tags: ['上下文', '可视化'] },
+      { name: '使用统计', command: '/stats', description: '查看每日使用量、会话历史、连续使用天数等', tags: ['统计', '历史'] },
+      { name: '用量限额', command: '/usage', description: '显示订阅计划的用量限制和速率限制状态', tags: ['限额', '订阅'] },
+    ],
+  },
+  {
+    id: 'task',
+    icon: '📋',
+    title: '任务管理',
+    description: '后台任务、待办事项和远程会话',
+    skills: [
+      { name: '任务列表', command: '/tasks', description: '列出和管理后台运行的任务', tags: ['任务', '后台'] },
+      { name: '待办事项', command: '/todos', description: '列出当前 TODO 项目', tags: ['任务', '待办'] },
+      { name: '远程传送', command: '/teleport', description: '从 claude.ai 恢复远程会话（订阅用户）', tags: ['远程', '同步'] },
+      { name: '调试会话', command: '/debug', description: '读取调试日志排查当前会话问题，可附带问题描述', tags: ['调试', '日志'] },
+    ],
+  },
+  {
+    id: 'community',
+    icon: '🌐',
+    title: '社区热门 Skill',
+    description: '来自社区的高质量自定义 Skill，可直接安装使用',
+    skills: [
+      { name: 'Feature Development', command: '/feature-development', description: '端到端功能实现工作流：需求分析 → 设计 → 编码 → 测试 → 提交', tags: ['工作流', '开发'], featured: true },
+      { name: 'Full Review', command: '/full-review', description: '多维度代码审查：安全、性能、可维护性、最佳实践', tags: ['审查', '质量'], featured: true },
+      { name: 'TDD Cycle', command: '/tdd-cycle', description: '测试驱动开发工作流：Red → Green → Refactor 循环', tags: ['TDD', '测试'], featured: true },
+      { name: 'Smart Fix', command: '/smart-fix', description: '智能问题修复：自动定位根因、实现修复、验证结果', tags: ['修复', '调试'] },
+      { name: 'Security Scan', command: '/security-scan', description: '安全漏洞扫描：OWASP Top 10、依赖检查、代码审计', tags: ['安全', '扫描'] },
+      { name: 'Deploy Checklist', command: '/deploy-checklist', description: '部署前检查清单：测试通过、构建成功、配置验证', tags: ['DevOps', '部署'] },
+      { name: 'Legacy Modernize', command: '/legacy-modernize', description: '遗留代码现代化：渐进式重构、技术债清理', tags: ['重构', '现代化'] },
+      { name: 'Performance Optimization', command: '/performance-optimization', description: '系统性能优化：性能分析、瓶颈定位、优化实施', tags: ['性能', '优化'] },
+      { name: 'Doc Generate', command: '/doc-generate', description: '自动生成文档：API 文档、README、架构说明', tags: ['文档', '生成'] },
+      { name: 'Deps Audit', command: '/deps-audit', description: '依赖审计：版本检查、安全漏洞、许可证合规', tags: ['依赖', '审计'] },
+    ],
+  },
+];
+
+const builtinCount = categories.filter(c => c.id !== 'community').reduce((sum, cat) => sum + cat.skills.length, 0);
+const communityCount = categories.find(c => c.id === 'community')?.skills.length || 0;
+const totalSkills = builtinCount + communityCount;
+---
+
+<BaseLayout title="Skill 目录 - Claude Code 教程" description="Claude Code 内置命令与社区 Skill 完整目录，掌握所有斜杠命令">
+  <!-- Hero -->
+  <div class="relative overflow-hidden border-b border-gray-200 dark:border-gray-800">
+    <div class="absolute inset-0 bg-gradient-to-b from-violet-50 to-white dark:from-violet-950/20 dark:to-gray-950"></div>
+    <div class="bg-grid absolute inset-0 opacity-50"></div>
+    <div class="absolute -top-24 -right-24 h-80 w-80 rounded-full bg-violet-200/30 blur-3xl dark:bg-violet-800/10"></div>
+    <div class="relative mx-auto max-w-7xl px-4 py-14 sm:px-6">
+      <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-3xl shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+        ⚡
+      </div>
+      <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Skill 目录</h1>
+      <p class="mt-3 max-w-2xl text-lg text-gray-600 dark:text-gray-400">
+        Claude Code 内置命令与社区 Skill 完整索引。输入 <code class="rounded bg-gray-100 px-1.5 py-0.5 text-sm font-mono text-primary-700 dark:bg-gray-800 dark:text-primary-300">/</code> 即可触发。
+      </p>
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-sm font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+          {builtinCount} 内置命令
+        </span>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">
+          {communityCount}+ 社区 Skill
+        </span>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+          {categories.length} 个分类
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <!-- Category nav -->
+    <div class="mb-10 flex flex-wrap gap-2">
+      {categories.map((cat) => (
+        <a href={`#${cat.id}`} class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 dark:border-gray-700 dark:text-gray-400 dark:hover:border-violet-700 dark:hover:bg-violet-950/50 dark:hover:text-violet-300">
+          <span>{cat.icon}</span>
+          {cat.title}
+          <span class="text-xs text-gray-400 dark:text-gray-500">({cat.skills.length})</span>
+        </a>
+      ))}
+    </div>
+
+    <!-- Custom skill hint -->
+    <div class="mb-10 rounded-xl border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-800 dark:bg-violet-950/20">
+      <p class="text-sm font-medium text-violet-800 dark:text-violet-200">创建自定义 Skill</p>
+      <div class="mt-2 space-y-1.5 overflow-x-auto rounded-lg bg-gray-900 px-4 py-3">
+        <div class="flex items-center gap-2">
+          <span class="select-none text-xs text-gray-500">#</span>
+          <code class="text-sm text-gray-400">在项目根目录创建 Skill 文件：</code>
+        </div>
+        <code class="block text-sm text-green-400">mkdir -p .claude/skills/my-skill</code>
+        <code class="block text-sm text-green-400">touch .claude/skills/my-skill/SKILL.md</code>
+      </div>
+      <p class="mt-2 text-xs text-violet-600 dark:text-violet-400">
+        Skill 文件支持 YAML frontmatter 配置（name / description / allowed-tools 等），使用 <code class="font-mono">$ARGUMENTS</code> 接收参数。
+        详细教程参见 <a href="/intermediate/05-hooks-configuration" class="underline hover:no-underline">Hooks 与扩展配置</a>
+      </p>
+    </div>
+
+    <!-- Categories -->
+    <div class="space-y-12">
+      {categories.map((cat) => (
+        <section id={cat.id}>
+          <div class="mb-4">
+            <h2 class="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white">
+              <span>{cat.icon}</span>
+              {cat.title}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{cat.description}</p>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {cat.skills.map((skill) => (
+              <div class="card-hover group flex flex-col rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-violet-300 hover:shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:hover:border-violet-700">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex-1 min-w-0">
+                    <h3 class="text-sm font-bold text-gray-900 dark:text-white">
+                      {skill.featured && <span class="mr-1 text-amber-500">⭐</span>}
+                      {skill.name}
+                    </h3>
+                    <code class="mt-0.5 block text-xs font-mono text-violet-600 dark:text-violet-400">{skill.command}</code>
+                  </div>
+                  {cat.id === 'community' && (
+                    <span class="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">社区</span>
+                  )}
+                </div>
+                <p class="mt-2 flex-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{skill.description}</p>
+                <div class="mt-3 flex flex-wrap gap-1">
+                  {skill.tags.map((tag) => (
+                    <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">{tag}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+
+    <!-- Keyboard shortcuts section -->
+    <div class="mt-16">
+      <h2 class="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white">
+        <span>⌨️</span>
+        快捷操作
+      </h2>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">除了斜杠命令外，还可以使用这些快捷方式</p>
+      <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+          <div class="flex items-center gap-2">
+            <kbd class="rounded bg-gray-100 px-2 py-0.5 text-xs font-mono font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">!</kbd>
+            <span class="text-sm font-medium text-gray-900 dark:text-white">Bash 模式</span>
+          </div>
+          <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">输入 <code class="font-mono">!</code> 前缀直接执行 Shell 命令</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+          <div class="flex items-center gap-2">
+            <kbd class="rounded bg-gray-100 px-2 py-0.5 text-xs font-mono font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">Esc × 2</kbd>
+            <span class="text-sm font-medium text-gray-900 dark:text-white">回退</span>
+          </div>
+          <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">双击 Esc 快速回退变更或总结对话</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+          <div class="flex items-center gap-2">
+            <kbd class="rounded bg-gray-100 px-2 py-0.5 text-xs font-mono font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">Ctrl+R</kbd>
+            <span class="text-sm font-medium text-gray-900 dark:text-white">历史搜索</span>
+          </div>
+          <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">反向搜索命令历史记录</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+          <div class="flex items-center gap-2">
+            <kbd class="rounded bg-gray-100 px-2 py-0.5 text-xs font-mono font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">Tab</kbd>
+            <span class="text-sm font-medium text-gray-900 dark:text-white">自动补全</span>
+          </div>
+          <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">补全命令提示和文件路径</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="mt-16 grid gap-6 sm:grid-cols-2">
+      <div class="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+        <h3 class="font-bold text-gray-900 dark:text-white">创建自己的 Skill</h3>
+        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">在 <code class="font-mono text-xs">.claude/skills/</code> 目录下创建 SKILL.md，支持 YAML frontmatter、参数传递和动态上下文注入。</p>
+        <div class="mt-3 space-y-1 text-xs text-gray-400 dark:text-gray-500">
+          <p><code class="font-mono">$ARGUMENTS</code> — 接收用户传入参数</p>
+          <p><code class="font-mono">!`command`</code> — 执行 Shell 命令注入结果</p>
+          <p><code class="font-mono">allowed-tools</code> — 限制可用工具范围</p>
+        </div>
+        <a href="/intermediate/05-hooks-configuration" class="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">
+          查看开发教程 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+        </a>
+      </div>
+      <div class="rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 p-6 dark:border-gray-700 dark:bg-gray-900/30">
+        <h3 class="font-bold text-gray-900 dark:text-white">发现更多社区 Skill</h3>
+        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">社区已有 57+ 生产级 Skill，涵盖开发工作流、DevOps、安全审计、文档生成等领域。</p>
+        <div class="mt-4 flex flex-col gap-2">
+          <a href="https://github.com/anthropics/claude-code" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">
+            Claude Code 官方仓库 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          </a>
+          <a href="https://github.com/hesreallyhim/awesome-claude-code" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">
+            Awesome Claude Code 合集 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>

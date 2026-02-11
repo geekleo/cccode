@@ -1,0 +1,30 @@
+name: 内容建议 / Feature Request
+description: 建议新教程、新功能或内容改进
+title: "[建议] "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: type
+    attributes:
+      label: 建议类型
+      options:
+        - 新增教程
+        - 内容改进
+        - 功能需求
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 详细描述
+      description: 请描述你的建议
+      placeholder: 请详细描述...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充说明
+      description: 任何相关的背景信息、参考链接等
+      placeholder: 可选

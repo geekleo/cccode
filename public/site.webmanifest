@@ -1,0 +1,16 @@
+{
+  "name": "Claude Code 教程",
+  "short_name": "CC教程",
+  "description": "从入门到精通，全面掌握 Claude Code AI 编程助手",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ]
+}

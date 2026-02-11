@@ -1,0 +1,245 @@
+---
+title: "CLAUDE.md 入门"
+description: "了解 CLAUDE.md 文件的作用、放置位置和基本结构，掌握 Claude Code 项目记忆的核心机制"
+order: 1
+section: intermediate
+difficulty: intermediate
+readingTime: 10
+pubDate: 2026-02-09
+tags: ["CLAUDE.md", "配置", "项目记忆", "入门"]
+---
+
+## 什么是 CLAUDE.md
+
+CLAUDE.md 是 Claude Code 的**项目记忆文件**。每当你启动 Claude Code 时，它会自动读取该文件的内容，将其作为理解项目的背景知识。你可以把它看作是写给 Claude 的一封"项目说明书"——告诉它你的项目是什么、使用了哪些技术栈、遵循什么编码规范以及需要注意的特殊事项。
+
+没有 CLAUDE.md 的时候，Claude Code 仍然能够工作，但它需要花费更多的时间去探索你的代码库来理解项目。有了 CLAUDE.md，Claude 从启动的那一刻就对你的项目有清晰的认知，回答更精准，操作更高效。
+
+### 为什么 CLAUDE.md 很重要
+
+- **减少重复说明**：不需要每次对话都告诉 Claude 你的项目用了什么框架
+- **保持一致性**：确保 Claude 始终遵循你的编码规范
+- **提高准确性**：Claude 了解项目特定的约定和限制后，犯错几率大大降低
+- **团队协作**：所有团队成员使用 Claude Code 时都能获得一致的体验
+
+## CLAUDE.md 的放置位置
+
+CLAUDE.md 可以放在多个位置，Claude Code 会按照优先级依次读取。
+
+### 项目根目录（最常用）
+
+将 CLAUDE.md 放在项目根目录下，这是最推荐的方式：
+
+```text
+my-project/
+  CLAUDE.md          <-- 项目级配置
+  package.json
+  src/
+    ...
+```
+
+这个文件会在你于该项目目录下启动 Claude Code 时自动加载。
+
+### 全局配置
+
+如果你希望所有项目都共享一些通用指令，可以在用户目录下创建全局配置：
+
+```text
+~/.claude/CLAUDE.md    <-- 全局配置，所有项目生效
+```
+
+全局配置适合放置通用偏好，例如：
+
+```markdown
+- 回答时使用中文
+- 代码注释使用英文
+- 优先使用函数式编程风格
+```
+
+### 子目录配置
+
+你还可以在子目录中放置 CLAUDE.md，它只在 Claude 处理该子目录下的文件时生效：
+
+```text
+my-project/
+  CLAUDE.md            <-- 项目级
+  src/
+    frontend/
+      CLAUDE.md        <-- 仅前端部分生效
+    backend/
+      CLAUDE.md        <-- 仅后端部分生效
+```
+
+### 加载优先级
+
+Claude Code 读取 CLAUDE.md 的顺序为：
+
+1. 全局 `~/.claude/CLAUDE.md`
+2. 项目根目录 `CLAUDE.md`
+3. 当前工作子目录的 `CLAUDE.md`（如果存在）
+
+所有层级的内容会合并在一起，子目录的配置不会覆盖上层配置，而是追加。
+
+## CLAUDE.md 的基本结构
+
+一个好的 CLAUDE.md 通常包含以下几个核心部分：
+
+### 1. 项目描述
+
+简要说明项目是什么、做什么用的：
+
+```markdown
+# 项目概述
+
+这是一个基于 Next.js 的电商平台前端，连接后端 REST API，使用 PostgreSQL 数据库。
+```
+
+### 2. 技术栈
+
+列出项目使用的主要技术：
+
+```markdown
+# 技术栈
+
+- 框架: Next.js 14 (App Router)
+- 语言: TypeScript (strict mode)
+- 样式: Tailwind CSS
+- 状态管理: Zustand
+- 测试: Vitest + React Testing Library
+- 包管理: pnpm
+```
+
+### 3. 编码规范
+
+说明项目遵循的编码规则：
+
+```markdown
+# 编码规范
+
+- 使用 2 空格缩进
+- 组件使用 PascalCase 命名
+- 工具函数使用 camelCase 命名
+- 所有函数必须添加 JSDoc 注释
+- 禁止使用 any 类型，必须使用具体类型
+```
+
+### 4. 重要上下文
+
+提供 Claude 需要了解的特殊信息：
+
+```markdown
+# 重要注意事项
+
+- API 基础路径在 .env.local 中配置，变量名为 NEXT_PUBLIC_API_URL
+- 认证使用 JWT，token 存储在 httpOnly cookie 中
+- 所有 API 请求必须通过 src/lib/api-client.ts 中的封装方法
+- 数据库迁移文件在 prisma/migrations/ 目录下，不要手动修改
+```
+
+## Claude Code 如何读取 CLAUDE.md
+
+当你启动 Claude Code 时，读取过程如下：
+
+1. **启动检测**：Claude Code 在启动时自动扫描 CLAUDE.md 文件
+2. **内容注入**：文件内容被注入到 Claude 的系统提示中，作为背景知识
+3. **持续生效**：整个会话期间，CLAUDE.md 的内容始终有效
+4. **实时更新**：如果你在会话中修改了 CLAUDE.md，Claude 会在下次读取文件时获取最新内容
+
+你可以在对话中验证 Claude 是否读取了 CLAUDE.md：
+
+```text
+> CLAUDE.md 中定义了哪些编码规范？
+```
+
+Claude 会基于 CLAUDE.md 的内容回答你的问题。
+
+## 实际示例：TypeScript 项目的 CLAUDE.md
+
+下面是一个完整的 TypeScript 项目 CLAUDE.md 示例：
+
+```markdown
+# TaskFlow - 任务管理应用
+
+## 项目概述
+TaskFlow 是一个团队任务管理 Web 应用，支持看板视图、甘特图和报告功能。
+
+## 技术栈
+- 前端: React 18 + TypeScript
+- 构建工具: Vite
+- UI 组件: Ant Design 5.x
+- 状态管理: Redux Toolkit
+- 请求库: TanStack Query
+- 测试: Vitest + Playwright (E2E)
+- 包管理器: pnpm
+
+## 项目结构
+- src/components/ - 通用 UI 组件
+- src/features/ - 按功能模块划分的业务代码
+- src/hooks/ - 自定义 React Hooks
+- src/services/ - API 请求封装
+- src/store/ - Redux store 配置和 slices
+- src/types/ - TypeScript 类型定义
+
+## 编码规范
+- 使用 ESLint + Prettier 格式化代码
+- 组件文件使用 .tsx，纯逻辑文件使用 .ts
+- 每个组件一个文件，文件名与组件名一致
+- 使用 named export 而非 default export
+- 类型定义统一放在 src/types/ 目录
+- 使用绝对路径导入 (配置了 @ 别名指向 src/)
+
+## 常用命令
+- pnpm dev - 启动开发服务器
+- pnpm build - 构建生产版本
+- pnpm test - 运行单元测试
+- pnpm test:e2e - 运行 E2E 测试
+- pnpm lint - 代码检查
+
+## 注意事项
+- 环境变量以 VITE_ 前缀开头
+- API Mock 数据在 src/mocks/ 目录下 (MSW)
+- 不要直接修改 src/generated/ 下的文件，它们由 OpenAPI 自动生成
+```
+
+## 使用 /init 命令生成 CLAUDE.md
+
+如果你不想从零开始写 CLAUDE.md，Claude Code 提供了 `/init` 命令来自动生成一个初始版本。
+
+### 使用方法
+
+在项目目录下启动 Claude Code 后，输入：
+
+```text
+> /init
+```
+
+Claude Code 会自动分析你的项目结构，包括：
+
+- 检测 `package.json`、`pyproject.toml`、`go.mod` 等配置文件
+- 识别使用的框架和工具
+- 扫描目录结构
+- 读取已有的 README 和配置文件
+
+然后生成一个 CLAUDE.md 初稿。
+
+### 生成后的调整
+
+自动生成的 CLAUDE.md 是一个不错的起点，但你通常需要手动补充以下内容：
+
+- 项目特定的约定和规则
+- 团队的编码偏好
+- 已知的坑和需要避免的做法
+- 部署流程和环境配置
+
+建议把 `/init` 生成的文件当作模板，在此基础上根据实际需要逐步完善。
+
+## 小结
+
+CLAUDE.md 是使用 Claude Code 最重要的配置之一。一个写得好的 CLAUDE.md 能够显著提升 Claude Code 的工作效率和输出质量。核心要点：
+
+- **放置位置**：项目根目录最常用，全局和子目录配置按需使用
+- **基本结构**：项目描述、技术栈、编码规范、重要上下文
+- **保持更新**：随着项目发展，定期更新 CLAUDE.md
+- **快速开始**：使用 `/init` 命令生成初稿，再手动完善
+
+下一篇教程将深入介绍 CLAUDE.md 的进阶技巧，包括多层级配置、文件引用以及针对不同项目类型的最佳实践。

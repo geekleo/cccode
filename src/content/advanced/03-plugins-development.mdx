@@ -1,0 +1,506 @@
+---
+title: "插件开发指南"
+description: "从零开始学习 Claude Code 插件系统，掌握自定义工具和插件开发全流程"
+order: 3
+section: advanced
+difficulty: advanced
+readingTime: 15
+pubDate: 2026-02-09
+tags: ["插件", "开发", "自定义工具", "扩展"]
+---
+
+## Claude Code 插件系统概述
+
+Claude Code 的插件系统允许开发者创建自定义的命令和工具，以扩展 Claude Code 的功能。插件可以封装特定领域的工作流，让团队成员能够快速复用最佳实践。
+
+### 什么是 Claude Code 插件
+
+插件本质上是一组预定义的**自定义斜杠命令（Custom Slash Commands）**，它们可以：
+
+- 封装常用的提示词模板
+- 定义特定任务的执行流程
+- 集成外部工具和服务
+- 在团队中共享标准化工作流
+
+### 插件与 MCP Server 的区别
+
+| 特性 | 插件（Slash Commands） | MCP Server |
+|---|---|---|
+| 主要用途 | 封装提示词和工作流 | 提供工具和数据源 |
+| 实现方式 | Markdown 文件 | 独立进程/服务 |
+| 交互模式 | 用户通过 `/command` 触发 | Claude 自动调用工具 |
+| 复杂度 | 低，纯文本定义 | 高，需要编写代码 |
+| 适用场景 | 标准化流程、提示词模板 | 数据库、API、文件系统集成 |
+
+## 插件架构与能力
+
+### 自定义斜杠命令
+
+Claude Code 支持两种级别的自定义斜杠命令：
+
+**项目级命令**：存放在 `.claude/commands/` 目录下，所有项目成员可用。
+
+**用户级命令**：存放在 `~/.claude/commands/` 目录下，仅当前用户可用。
+
+### 命令文件结构
+
+每个命令是一个 `.md` 文件，文件名即为命令名：
+
+```
+.claude/
+  commands/
+    review.md          → /project:review
+    deploy.md          → /project:deploy
+    generate-tests.md  → /project:generate-tests
+
+~/.claude/
+  commands/
+    daily-report.md    → /user:daily-report
+    refactor.md        → /user:refactor
+```
+
+## 创建基础插件项目结构
+
+让我们从一个实际项目开始，搭建完整的插件目录结构。
+
+### 初始化命令目录
+
+```bash
+# 创建项目级命令目录
+mkdir -p .claude/commands
+
+# 创建用户级命令目录（如果还不存在）
+mkdir -p ~/.claude/commands
+```
+
+### 项目结构示例
+
+一个拥有多个自定义命令的项目结构：
+
+```
+my-project/
+├── .claude/
+│   ├── settings.json          # 项目配置
+│   └── commands/
+│       ├── review.md          # 代码审查命令
+│       ├── deploy.md          # 部署命令
+│       ├── generate-tests.md  # 测试生成命令
+│       ├── document.md        # 文档生成命令
+│       └── debug.md           # 调试辅助命令
+├── src/
+├── tests/
+└── package.json
+```
+
+## 命令文件编写
+
+### 基本格式
+
+命令文件是一个 Markdown 文件，其内容就是 Claude Code 在执行该命令时接收到的提示词。
+
+最简单的命令文件：
+
+```markdown
+请对当前项目进行代码审查，重点关注以下方面：
+1. 代码质量和可读性
+2. 潜在的 Bug
+3. 性能问题
+4. 安全漏洞
+
+请按照严重程度排列发现的问题，并给出具体的修改建议。
+```
+
+将上述内容保存为 `.claude/commands/review.md`，然后在 Claude Code 中输入 `/project:review` 即可触发。
+
+### 使用变量
+
+命令支持 `$ARGUMENTS` 变量，用于接收用户在斜杠命令后面输入的额外参数：
+
+```markdown
+请为以下文件生成单元测试：
+
+$ARGUMENTS
+
+要求：
+- 使用项目现有的测试框架
+- 覆盖正常路径和异常路径
+- 测试边界条件
+- 每个测试用例都要有清晰的描述
+- Mock 外部依赖
+```
+
+使用方式：
+
+```
+/project:generate-tests src/utils/validator.ts
+```
+
+此时 `$ARGUMENTS` 会被替换为 `src/utils/validator.ts`。
+
+### 高级命令模板
+
+更复杂的命令可以包含详细的上下文和分步指引：
+
+```markdown
+## 部署前检查和部署
+
+请执行以下部署流程：
+
+### 第一步：代码检查
+- 运行 lint 检查：`npm run lint`
+- 运行类型检查：`npm run type-check`
+- 如果有错误，请停止并报告
+
+### 第二步：测试
+- 运行完整测试套件：`npm test`
+- 确保所有测试通过
+- 如果有失败，请停止并报告
+
+### 第三步：构建
+- 执行生产构建：`npm run build`
+- 确认构建成功且无警告
+
+### 第四步：部署
+- 部署目标环境：$ARGUMENTS（默认为 staging）
+- 执行部署命令
+- 验证部署是否成功
+
+请在每个步骤完成后报告状态，如果任何步骤失败请立即停止。
+```
+
+## 实现自定义工具
+
+除了简单的提示词模板，你还可以创建更复杂的工具链。
+
+### 代码审查工具
+
+创建 `.claude/commands/review-pr.md`：
+
+```markdown
+请对当前分支的 Pull Request 进行全面的代码审查。
+
+### 审查步骤
+
+1. **获取变更概览**
+   运行 `git diff main...HEAD --stat` 查看变更的文件列表
+
+2. **逐文件审查**
+   运行 `git diff main...HEAD` 获取完整 diff，然后逐个文件审查
+
+3. **检查重点**
+   - 逻辑正确性：代码是否实现了预期功能
+   - 错误处理：是否覆盖了异常情况
+   - 安全性：是否有 SQL 注入、XSS 等安全风险
+   - 性能：是否有 N+1 查询、内存泄漏等性能问题
+   - 代码风格：是否符合项目编码规范
+   - 测试覆盖：变更是否有对应的测试
+
+4. **输出格式**
+   请按以下格式输出审查结果：
+
+   **总体评价**：简要总结代码质量
+
+   **必须修改**：
+   - [文件名:行号] 描述问题和建议
+
+   **建议优化**：
+   - [文件名:行号] 描述优化建议
+
+   **值得肯定**：
+   - 列出代码中做得好的地方
+```
+
+### 数据库迁移工具
+
+创建 `.claude/commands/db-migrate.md`：
+
+```markdown
+请帮我创建一个数据库迁移文件。
+
+迁移需求：$ARGUMENTS
+
+要求：
+1. 使用项目现有的迁移工具（检查 package.json 确定）
+2. 同时创建 up 和 down 迁移
+3. 遵循项目的命名规范
+4. 在迁移文件中添加注释说明变更内容
+5. 生成迁移后，提示我检查并确认是否执行
+```
+
+### API 接口生成工具
+
+创建 `.claude/commands/generate-api.md`：
+
+```markdown
+请根据以下描述生成 RESTful API 接口代码：
+
+$ARGUMENTS
+
+生成要求：
+1. **路由定义**：按照项目现有路由风格
+2. **控制器**：包含完整的 CRUD 操作
+3. **数据验证**：使用项目的验证库
+4. **错误处理**：统一的错误响应格式
+5. **类型定义**：完整的 TypeScript 类型
+6. **测试文件**：对应的 API 测试
+7. **文档注释**：JSDoc 或 Swagger 注释
+
+请先分析项目的技术栈和代码风格，然后再生成代码。
+```
+
+## 本地测试插件
+
+### 测试命令是否生效
+
+创建命令文件后，重新启动 Claude Code（或者直接在已有会话中使用），然后：
+
+```bash
+# 启动 Claude Code
+claude
+
+# 在对话中输入斜杠命令查看是否出现在自动补全中
+# 输入 / 然后查看可用命令列表
+```
+
+### 调试命令
+
+如果命令没有按预期工作：
+
+1. **检查文件位置**：确认 `.md` 文件在正确的目录下
+2. **检查文件名**：文件名不能包含空格，建议使用短横线分隔
+3. **检查内容**：确保 Markdown 格式正确
+4. **测试变量**：使用 `$ARGUMENTS` 时，确认传参方式正确
+
+```bash
+# 验证命令文件存在
+ls -la .claude/commands/
+
+# 查看命令文件内容
+cat .claude/commands/review.md
+```
+
+### 迭代优化
+
+好的命令需要反复打磨。推荐的优化流程：
+
+1. 编写初始版本
+2. 在真实场景中使用
+3. 观察 Claude Code 的响应质量
+4. 调整提示词、增加约束条件
+5. 添加具体的示例
+6. 重复 2-5 步
+
+## 分享和发布插件
+
+### 通过 Git 仓库共享
+
+最简单的共享方式是将 `.claude/commands/` 目录提交到 Git 仓库：
+
+```bash
+# 将命令目录提交到版本控制
+git add .claude/commands/
+git commit -m "添加团队自定义 Claude Code 命令"
+git push
+```
+
+团队成员克隆仓库后即可直接使用项目级命令。
+
+### 创建命令集合仓库
+
+对于跨项目通用的命令，可以创建专门的命令集合仓库：
+
+```
+claude-commands/
+├── README.md
+├── code-review/
+│   ├── review.md
+│   ├── security-review.md
+│   └── performance-review.md
+├── testing/
+│   ├── generate-unit-tests.md
+│   ├── generate-e2e-tests.md
+│   └── test-coverage.md
+├── documentation/
+│   ├── generate-docs.md
+│   ├── update-readme.md
+│   └── api-docs.md
+└── deployment/
+    ├── deploy-staging.md
+    ├── deploy-production.md
+    └── rollback.md
+```
+
+使用者可以根据需要将命令文件复制到自己的项目或用户目录中。
+
+### 安装脚本
+
+为方便使用，可以提供安装脚本：
+
+```bash
+#!/bin/bash
+# install-commands.sh
+
+# 安装到用户级命令目录
+COMMANDS_DIR="$HOME/.claude/commands"
+mkdir -p "$COMMANDS_DIR"
+
+# 复制所有命令
+cp code-review/*.md "$COMMANDS_DIR/"
+cp testing/*.md "$COMMANDS_DIR/"
+cp documentation/*.md "$COMMANDS_DIR/"
+
+echo "已安装 $(ls -1 "$COMMANDS_DIR"/*.md | wc -l) 个 Claude Code 命令"
+```
+
+## 插件安全与权限模型
+
+### 命令执行权限
+
+自定义斜杠命令本质上是提示词模板，Claude Code 在执行过程中仍然遵循标准的安全策略：
+
+- **文件操作**：需要用户确认（除非在允许列表中）
+- **命令执行**：需要用户确认（除非在允许列表中）
+- **网络访问**：通过 MCP Server 进行，需要单独授权
+
+### 安全建议
+
+```
+建议：
+- 审查从外部获取的命令文件内容
+- 不要在命令文件中包含敏感信息
+- 使用环境变量引用凭证
+- 定期审查团队共享的命令
+
+注意：
+- 命令文件中的指令会被 Claude Code 执行
+- 恶意的命令文件可能引导 Claude Code 执行不安全的操作
+- 只从可信来源获取命令文件
+```
+
+### 权限范围控制
+
+可以在命令中明确限定操作范围：
+
+```markdown
+请仅对 src/ 目录下的文件进行修改。
+不要修改以下文件和目录：
+- node_modules/
+- .env
+- .claude/settings.json
+- package-lock.json
+
+如果需要修改上述文件，请先征得我的同意。
+```
+
+## 实战：构建部署助手插件
+
+下面通过一个完整的实战案例，构建一个面向前端项目的部署助手插件集。
+
+### 需求分析
+
+部署助手需要覆盖以下场景：
+- 部署前检查
+- 执行部署
+- 部署后验证
+- 回滚操作
+
+### 创建命令文件
+
+创建 `.claude/commands/deploy-check.md`：
+
+```markdown
+请在部署前执行以下检查：
+
+1. **Git 状态检查**
+   - 确认当前分支是 main 或 release 分支
+   - 确认没有未提交的变更
+   - 确认与远程分支同步
+
+2. **依赖检查**
+   - 运行 `npm ci` 确保依赖完整
+   - 检查是否有安全漏洞：`npm audit`
+
+3. **代码质量检查**
+   - 运行 `npm run lint`
+   - 运行 `npm run type-check`（如果存在）
+
+4. **测试检查**
+   - 运行 `npm test`
+   - 确保所有测试通过
+
+5. **构建检查**
+   - 运行 `npm run build`
+   - 确认构建产物大小合理
+
+请输出每个检查步骤的状态（通过/失败），最后给出是否可以部署的建议。
+```
+
+创建 `.claude/commands/deploy-run.md`：
+
+```markdown
+请执行部署操作。
+
+目标环境：$ARGUMENTS（如未指定，默认为 staging）
+
+部署步骤：
+1. 确认目标环境参数
+2. 运行部署命令（根据项目配置确定具体命令）
+3. 等待部署完成
+4. 执行基本的健康检查
+5. 报告部署结果
+
+注意事项：
+- 如果是 production 环境，请在执行前再次确认
+- 记录部署时间和提交 hash，方便后续追踪
+- 如果部署失败，立即停止并报告错误信息
+```
+
+创建 `.claude/commands/deploy-verify.md`：
+
+```markdown
+请验证最近一次部署的状态：
+
+1. **服务健康检查**
+   - 检查应用是否正常运行
+   - 确认 API 端点响应正常
+
+2. **日志检查**
+   - 查看最近的应用日志
+   - 检查是否有错误或异常
+
+3. **性能基准**
+   - 如果有监控工具，检查关键指标
+   - 与部署前的基准对比
+
+请汇总验证结果，如果发现问题请建议是否需要回滚。
+```
+
+### 使用部署助手
+
+```
+# 部署前检查
+/project:deploy-check
+
+# 执行部署到 staging
+/project:deploy-run staging
+
+# 部署后验证
+/project:deploy-verify
+
+# 如果需要，执行部署到 production
+/project:deploy-run production
+```
+
+## 小结
+
+本节深入讲解了 Claude Code 的插件开发体系。核心知识点回顾：
+
+- **命令系统**：项目级 `.claude/commands/` 和用户级 `~/.claude/commands/`
+- **命令文件**：Markdown 格式，支持 `$ARGUMENTS` 变量
+- **工具开发**：通过精心设计的提示词模板实现复杂工作流
+- **本地测试**：检查文件位置、格式和变量使用
+- **分享发布**：通过 Git 仓库共享，可提供安装脚本
+- **安全模型**：命令受 Claude Code 标准安全策略约束
+- **实战案例**：部署助手插件集的完整实现
+
+下一节我们将探讨 Claude Code 的多 Agent 协作能力，学习如何编排多个 Agent 执行复杂任务。

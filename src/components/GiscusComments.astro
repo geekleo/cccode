@@ -1,0 +1,85 @@
+---
+---
+
+<div id="giscus-container" class="mt-12 border-t border-gray-200 pt-10 dark:border-gray-800">
+  <h2 class="mb-6 text-xl font-bold text-gray-900 dark:text-white">
+    <svg class="mb-0.5 mr-2 inline-block h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    </svg>
+    评论与讨论
+  </h2>
+  <div class="giscus"></div>
+</div>
+
+<script is:inline>
+(function() {
+  // Configuration - update these when you set up your GitHub repo
+  const GISCUS_CONFIG = {
+    repo: 'your-username/cc-course',           // TODO: 替换为你的 GitHub 仓库
+    repoId: '',                                  // TODO: 在 https://giscus.app 获取
+    category: 'Announcements',
+    categoryId: '',                              // TODO: 在 https://giscus.app 获取
+  };
+
+  function getTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark'
+      ? 'dark_dimmed'
+      : 'light';
+  }
+
+  function loadGiscus() {
+    const container = document.querySelector('.giscus');
+    if (!container || container.querySelector('iframe')) return;
+
+    // Skip loading if repo is not configured
+    if (!GISCUS_CONFIG.repoId) {
+      container.innerHTML = '<div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-8 text-center dark:border-gray-700 dark:bg-gray-800/50"><p class="text-sm text-gray-500 dark:text-gray-400">评论系统待配置。请在 GitHub 创建仓库后，前往 <a href="https://giscus.app/zh-CN" target="_blank" class="text-primary-600 hover:underline dark:text-primary-400">giscus.app</a> 获取配置信息。</p></div>';
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://giscus.app/client.js';
+    script.setAttribute('data-repo', GISCUS_CONFIG.repo);
+    script.setAttribute('data-repo-id', GISCUS_CONFIG.repoId);
+    script.setAttribute('data-category', GISCUS_CONFIG.category);
+    script.setAttribute('data-category-id', GISCUS_CONFIG.categoryId);
+    script.setAttribute('data-mapping', 'pathname');
+    script.setAttribute('data-strict', '0');
+    script.setAttribute('data-reactions-enabled', '1');
+    script.setAttribute('data-emit-metadata', '0');
+    script.setAttribute('data-input-position', 'top');
+    script.setAttribute('data-theme', getTheme());
+    script.setAttribute('data-lang', 'zh-CN');
+    script.setAttribute('data-loading', 'lazy');
+    script.crossOrigin = 'anonymous';
+    script.async = true;
+    container.appendChild(script);
+  }
+
+  // Observe theme changes to update giscus
+  const observer = new MutationObserver(() => {
+    const iframe = document.querySelector('.giscus iframe');
+    if (iframe) {
+      iframe.contentWindow?.postMessage(
+        { giscus: { setConfig: { theme: getTheme() } } },
+        'https://giscus.app'
+      );
+    }
+  });
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // Load on intersection
+  const container = document.getElementById('giscus-container');
+  if (container && 'IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        loadGiscus();
+        io.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    io.observe(container);
+  } else {
+    loadGiscus();
+  }
+})();
+</script>

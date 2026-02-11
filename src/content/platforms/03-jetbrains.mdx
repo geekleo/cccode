@@ -1,0 +1,270 @@
+---
+title: "JetBrains 插件"
+description: "在 IntelliJ IDEA、WebStorm、PyCharm 等 JetBrains IDE 中安装和使用 Claude Code 插件"
+order: 3
+section: platforms
+difficulty: beginner
+readingTime: 10
+pubDate: 2026-02-09
+tags: ["JetBrains", "IntelliJ", "WebStorm", "PyCharm", "IDE"]
+---
+
+## 概述
+
+Claude Code 提供了官方的 JetBrains 插件，支持 JetBrains 旗下全系列 IDE。如果你是 JetBrains 生态的用户，无需切换到其他编辑器即可享受 Claude Code 的 AI 编程辅助能力。
+
+### 支持的 IDE
+
+Claude Code JetBrains 插件支持以下 IDE（2024.1 或更高版本）：
+
+| IDE | 适用语言/场景 |
+|-----|-------------|
+| **IntelliJ IDEA** | Java、Kotlin、Scala |
+| **WebStorm** | JavaScript、TypeScript |
+| **PyCharm** | Python |
+| **GoLand** | Go |
+| **PhpStorm** | PHP |
+| **RubyMine** | Ruby |
+| **Rider** | C#、.NET |
+| **CLion** | C、C++ |
+| **DataGrip** | 数据库、SQL |
+| **Android Studio** | Android 开发 |
+
+<CalloutBox type="info">
+只要你的 JetBrains IDE 版本为 2024.1 或更高，就可以安装 Claude Code 插件。所有 IDE 的安装和使用方式完全一致。
+</CalloutBox>
+
+## 安装插件
+
+### 方法一：从 IDE 内部安装
+
+1. 打开你的 JetBrains IDE
+2. 进入 **Settings / Preferences**（`Ctrl+Alt+S` / `Cmd+,`）
+3. 在左侧导航中选择 **Plugins**
+4. 点击 **Marketplace** 标签
+5. 搜索 **Claude Code**
+6. 找到由 **Anthropic** 发布的官方插件，点击 **Install**
+7. 安装完成后，点击 **Restart IDE** 重启
+
+### 方法二：通过 CLI 安装
+
+如果已安装 Claude Code CLI，可以使用以下命令：
+
+```bash
+claude install-extension jetbrains
+```
+
+该命令会自动检测已安装的 JetBrains IDE 并完成插件安装。
+
+### 方法三：手动安装
+
+如果自动安装不可用，可以从 JetBrains Marketplace 网站下载插件包（`.zip` 文件），然后在 IDE 中通过 **Install Plugin from Disk** 手动安装。
+
+### 安装验证
+
+安装成功后，你会看到：
+
+- 右侧工具栏出现 Claude Code 图标
+- 菜单栏中出现 **Claude Code** 菜单项
+- 底部工具栏出现 Claude Code 状态指示器
+
+## 插件功能与界面
+
+### 主界面布局
+
+Claude Code JetBrains 插件的主要界面包括：
+
+- **聊天面板**：位于 IDE 右侧或底部的工具窗口，用于与 Claude 对话
+- **内联提示**：在编辑器中直接显示的代码建议和快速操作
+- **状态栏**：底部状态栏显示连接状态和当前模型信息
+- **上下文面板**：显示当前发送给 Claude 的文件上下文
+
+### 打开聊天面板
+
+- 点击右侧工具栏的 Claude Code 图标
+- 使用快捷键 `Alt+C`（macOS 为 `Option+C`）
+- 通过菜单：**View > Tool Windows > Claude Code**
+
+## 在 JetBrains IDE 中使用 Claude Code
+
+### 基本对话
+
+在聊天面板中，你可以像使用终端版本一样与 Claude 进行自然语言对话：
+
+```
+你：分析这个项目的架构并列出主要模块
+
+Claude：根据项目结构分析，该项目采用了分层架构模式...
+  - controller 层：处理 HTTP 请求...
+  - service 层：实现业务逻辑...
+  - repository 层：数据访问...
+```
+
+### 选中代码提问
+
+1. 在编辑器中选中一段代码
+2. 右键点击，选择 **Claude Code > Ask About Selection**
+3. 或使用快捷键 `Alt+Shift+C`（macOS 为 `Option+Shift+C`）
+4. 在弹出的输入框中输入你的问题
+
+### 快速操作菜单
+
+将光标放在代码上时，按 `Alt+Enter`（macOS 为 `Option+Enter`）打开意图操作菜单，其中包含 Claude Code 提供的快速操作：
+
+- **Explain Code** — 解释当前代码块
+- **Find Bugs** — 查找潜在的 Bug
+- **Suggest Improvements** — 建议改进方案
+- **Generate Tests** — 生成单元测试
+- **Add Documentation** — 添加文档注释
+- **Refactor with Claude** — 使用 Claude 重构代码
+
+## 内联建议与代码操作
+
+### 内联代码补全
+
+Claude Code 会在你编写代码时提供实时的内联补全建议：
+
+```java
+// 在 Java 中，当你开始写方法时：
+public UserDTO findUserById(Long id) {
+    // Claude 会建议完整的实现
+    // 包括异常处理、空值检查等
+}
+```
+
+- **接受建议**：按 `Tab` 键
+- **部分接受**：按 `Ctrl+→` 逐词接受
+- **忽略建议**：按 `Escape` 或继续输入
+
+### Gutter 图标操作
+
+在编辑器的行号槽（gutter）中，Claude Code 可能会显示操作图标：
+
+- 点击图标可以触发相关的 Claude 操作
+- 例如在测试文件旁显示"运行并分析"图标
+- 在有 TODO 注释的行旁显示"处理 TODO"图标
+
+## 配置与设置
+
+### 打开插件设置
+
+1. 进入 **Settings / Preferences**（`Ctrl+Alt+S` / `Cmd+,`）
+2. 在左侧导航中找到 **Tools > Claude Code**
+
+### 主要配置项
+
+| 设置项 | 说明 | 默认值 |
+|--------|------|--------|
+| Enable Inline Suggestions | 开启内联代码建议 | 开启 |
+| Suggestion Delay | 建议触发延迟（毫秒） | 500 |
+| Max Context Lines | 发送的最大上下文行数 | 500 |
+| Show Tool Calls | 显示工具调用详情 | 开启 |
+| Auto Accept Edits | 自动接受代码修改 | 关闭 |
+| Panel Position | 聊天面板位置 | Right |
+| Font Size | 聊天面板字体大小 | 跟随 IDE |
+
+### 项目级别配置
+
+你可以在项目的 `.idea` 目录下创建 Claude Code 的项目级配置，覆盖全局设置。这对于团队协作中保持一致的配置特别有用。
+
+## 快捷键
+
+### 默认快捷键一览
+
+| 快捷键（Windows/Linux） | 快捷键（macOS） | 功能 |
+|------------------------|-----------------|------|
+| `Alt+C` | `Option+C` | 打开 / 聚焦聊天面板 |
+| `Alt+Shift+C` | `Option+Shift+C` | 发送选中代码到 Claude |
+| `Alt+Enter` | `Option+Enter` | 显示 Claude 快速操作 |
+| `Tab` | `Tab` | 接受内联建议 |
+| `Escape` | `Escape` | 取消内联建议 |
+| `Ctrl+→` | `Cmd+→` | 逐词接受建议 |
+| `Alt+]` | `Option+]` | 下一个建议 |
+| `Alt+[` | `Option+[` | 上一个建议 |
+
+### 自定义快捷键
+
+在 **Settings > Keymap** 中搜索 "Claude Code"，可以根据个人习惯重新绑定所有快捷键。
+
+<CalloutBox type="tip">
+如果你同时使用 VS Code 和 JetBrains IDE，建议将两个平台的 Claude Code 快捷键设置为一致的组合，以减少切换成本。
+</CalloutBox>
+
+## 与 VS Code 扩展的对比
+
+如果你在 VS Code 和 JetBrains 之间犹豫，以下对比可能有所帮助：
+
+| 特性 | VS Code 扩展 | JetBrains 插件 |
+|------|-------------|---------------|
+| 聊天面板 | 支持 | 支持 |
+| 内联建议 | 支持 | 支持 |
+| 选中代码提问 | 支持 | 支持 |
+| 差异预览 | 支持 | 支持 |
+| 命令面板集成 | 深度集成 | 集成（通过 Action） |
+| 终端集成 | 内置终端 | 内置终端 |
+| 重构集成 | 基础 | 与 IDE 重构工具联动 |
+| 调试集成 | 基础 | 深度集成 |
+| 项目索引利用 | 有限 | 利用 IDE 索引 |
+| 启动速度 | 较快 | 取决于 IDE |
+| 内存占用 | 较低 | 较高 |
+
+### JetBrains 的独特优势
+
+- **深度 IDE 集成**：利用 JetBrains IDE 的代码分析、重构和调试能力
+- **更精确的代码理解**：通过 IDE 的代码索引提供更准确的上下文
+- **重构协同**：Claude 的建议可以与 IDE 的重构功能联动
+- **多语言项目**：IntelliJ IDEA Ultimate 支持多种语言，Claude 同样可以跨语言工作
+
+### VS Code 的独特优势
+
+- **更轻量**：启动更快，资源占用更低
+- **扩展生态**：可以与更多第三方扩展配合
+- **更新更频繁**：VS Code 扩展通常能更快获得新功能
+
+## 已知限制
+
+使用 JetBrains 插件时需要注意以下限制：
+
+### 当前限制
+
+- **大文件性能**：对于超过 10,000 行的文件，内联建议可能会有明显延迟
+- **部分语言支持**：某些小众语言的语法高亮在聊天面板中可能不完整
+- **远程开发**：通过 JetBrains Gateway 远程开发时，插件功能可能受限
+- **离线使用**：插件需要网络连接才能工作，不支持离线模式
+- **文件系统操作**：部分文件创建和删除操作可能需要手动刷新项目视图
+
+### 兼容性注意事项
+
+- 确保 IDE 版本为 2024.1 或更高
+- 某些第三方 AI 插件可能与 Claude Code 冲突，建议同一时间只启用一个 AI 辅助插件
+- 自定义主题可能影响 Claude Code 面板的显示效果
+
+<CalloutBox type="warning">
+如果你遇到插件异常，尝试以下步骤：1) 清除 IDE 缓存（File > Invalidate Caches）；2) 重新安装插件；3) 检查 IDE 日志（Help > Show Log in Finder/Explorer）。
+</CalloutBox>
+
+## 常见问题
+
+### 插件安装后不显示
+
+检查以下几点：
+
+1. IDE 版本是否满足要求（2024.1+）
+2. 是否已重启 IDE
+3. 在 **Settings > Plugins > Installed** 中确认插件已启用
+
+### 无法连接到 Claude 服务
+
+1. 检查网络连接
+2. 确认认证信息是否正确（检查 API Key 或 OAuth 状态）
+3. 如果使用代理，确保在 IDE 的网络设置中正确配置
+
+### 内联建议不工作
+
+1. 确认在设置中已启用内联建议
+2. 检查当前文件类型是否支持
+3. 尝试重启插件或 IDE
+
+## 下一步
+
+了解了 IDE 插件的使用方式后，下一节将介绍 Claude Code 的 Web 版本，适合不方便安装 CLI 或 IDE 插件的场景。

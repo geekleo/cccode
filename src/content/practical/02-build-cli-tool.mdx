@@ -1,0 +1,660 @@
+---
+title: "构建 CLI 工具"
+description: "使用 Claude Code 构建一个功能完整的 Node.js 命令行工具，从需求定义到发布 npm"
+order: 2
+section: practical
+difficulty: intermediate
+readingTime: 20
+pubDate: 2026-02-09
+tags: ["实战", "CLI", "Node.js", "npm"]
+---
+
+## 概述
+
+命令行工具（CLI）是开发者日常工作中不可或缺的部分。本篇将带你使用 Claude Code 构建一个实用的 Node.js CLI 工具 —— 一个项目脚手架生成器（类似于 `create-react-app` 或 `create-next-app`）。
+
+我们将它命名为 `create-quickstart`，它能根据用户选择的模板快速生成项目结构。通过这个实战项目，你将学到：
+
+- 如何用 Claude Code 设计 CLI 工具的架构
+- 使用 Commander.js 处理命令和参数
+- 使用 Inquirer.js 创建交互式提示
+- 错误处理和用户体验优化
+- 如何发布到 npm
+
+<CalloutBox type="info">
+本教程使用 Node.js 和 TypeScript。你也可以让 Claude Code 用 Go、Rust 或 Python 来构建 CLI 工具，核心思路相同，只是使用的库不同。
+</CalloutBox>
+
+## 第一步：定义需求
+
+在开始编码之前，先让 Claude Code 帮你梳理需求。启动 Claude Code 后输入：
+
+```
+我想构建一个叫 create-quickstart 的 CLI 工具，功能如下：
+
+1. 用户运行 create-quickstart 后，交互式地选择：
+   - 项目名称
+   - 模板类型（React、Vue、Node.js API、静态网站）
+   - 是否使用 TypeScript
+   - 包管理器（npm / yarn / pnpm）
+2. 根据选择复制对应的模板文件到目标目录
+3. 自动安装依赖
+4. 显示后续步骤提示
+
+请帮我设计这个工具的目录结构和技术方案
+```
+
+Claude Code 会输出一个清晰的项目结构设计：
+
+```
+create-quickstart/
+├── src/
+│   ├── index.ts          # 入口文件
+│   ├── cli.ts            # 命令行参数解析
+│   ├── prompts.ts        # 交互式问答
+│   ├── generator.ts      # 项目生成逻辑
+│   └── utils.ts          # 工具函数
+├── templates/
+│   ├── react/
+│   ├── vue/
+│   ├── node-api/
+│   └── static/
+├── package.json
+├── tsconfig.json
+└── README.md
+```
+
+## 第二步：项目初始化
+
+### 创建项目并安装依赖
+
+```
+初始化 create-quickstart 项目：
+1. 创建目录并初始化 npm 项目
+2. 安装开发依赖：typescript, @types/node, tsx
+3. 安装运行依赖：commander, inquirer, chalk, ora, fs-extra
+4. 安装对应的类型声明：@types/inquirer, @types/fs-extra
+5. 配置 tsconfig.json（target ES2020, module NodeNext）
+6. 在 package.json 中配置 bin 字段指向 dist/index.js
+7. 添加 build 和 dev 脚本
+```
+
+Claude Code 会依次创建文件和安装依赖。生成的 `package.json` 核心部分如下：
+
+```json
+{
+  "name": "create-quickstart",
+  "version": "1.0.0",
+  "description": "快速生成项目脚手架",
+  "type": "module",
+  "bin": {
+    "create-quickstart": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "prepare": "npm run build"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ]
+}
+```
+
+<CalloutBox type="tip">
+`bin` 字段是 CLI 工具的关键配置，它告诉 npm 在全局安装时创建哪个可执行命令。`files` 字段指定发布到 npm 时包含哪些文件。
+</CalloutBox>
+
+## 第三步：实现命令行参数解析
+
+### 使用 Commander.js
+
+让 Claude Code 实现命令行入口：
+
+```
+创建 src/cli.ts，使用 Commander.js 实现以下命令行接口：
+- create-quickstart [project-name]  —— 项目名可选，不传则交互式询问
+- --template, -t 选项：指定模板类型（跳过交互选择）
+- --typescript 标记：直接使用 TypeScript
+- --package-manager, -p 选项：指定包管理器
+- --no-install 标记：跳过自动安装依赖
+- --version, -V：显示版本号
+```
+
+Claude Code 生成的代码大致如下：
+
+```typescript
+// src/cli.ts
+import { Command } from "commander";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(
+  readFileSync(join(__dirname, "..", "package.json"), "utf-8")
+);
+
+export interface CLIOptions {
+  template?: string;
+  typescript?: boolean;
+  packageManager?: string;
+  install?: boolean;
+}
+
+export function createProgram() {
+  const program = new Command();
+
+  program
+    .name("create-quickstart")
+    .description("快速生成项目脚手架")
+    .version(pkg.version)
+    .argument("[project-name]", "项目名称")
+    .option("-t, --template <type>", "模板类型: react, vue, node-api, static")
+    .option("--typescript", "使用 TypeScript", false)
+    .option("-p, --package-manager <pm>", "包管理器: npm, yarn, pnpm")
+    .option("--no-install", "跳过自动安装依赖");
+
+  return program;
+}
+```
+
+### 创建入口文件
+
+```
+创建 src/index.ts 作为入口文件：
+1. 在顶部添加 shebang 行 #!/usr/bin/env node
+2. 解析命令行参数
+3. 调用交互式提示（对于未通过参数指定的选项）
+4. 调用项目生成器
+5. 用 try-catch 包裹主流程，优雅处理错误
+```
+
+```typescript
+#!/usr/bin/env node
+
+import { createProgram } from "./cli.js";
+import { promptUser } from "./prompts.js";
+import { generateProject } from "./generator.js";
+import chalk from "chalk";
+
+async function main() {
+  const program = createProgram();
+  program.parse();
+
+  const projectName = program.args[0];
+  const options = program.opts();
+
+  try {
+    // 收集用户输入（命令行参数 + 交互式提示补充）
+    const config = await promptUser(projectName, options);
+
+    // 生成项目
+    await generateProject(config);
+
+    console.log();
+    console.log(chalk.green("项目创建成功！"));
+    console.log();
+    console.log("下一步：");
+    console.log(chalk.cyan(`  cd ${config.projectName}`));
+    if (!options.install) {
+      console.log(chalk.cyan(`  ${config.packageManager} install`));
+    }
+    console.log(chalk.cyan(`  ${config.packageManager} run dev`));
+    console.log();
+  } catch (error) {
+    if (error instanceof Error && error.message === "USER_CANCELLED") {
+      console.log(chalk.yellow("\n已取消操作。"));
+      process.exit(0);
+    }
+    console.error(chalk.red("\n出错了："), (error as Error).message);
+    process.exit(1);
+  }
+}
+
+main();
+```
+
+## 第四步：交互式提示
+
+### 使用 Inquirer.js
+
+```
+创建 src/prompts.ts，实现交互式提示：
+1. 如果项目名称未提供，询问项目名称（带默认值 my-project）
+2. 验证项目名称（合法的 npm 包名，目标目录不存在）
+3. 选择模板类型（列表选择，每个选项有简短描述）
+4. 是否使用 TypeScript（确认提示）
+5. 选择包管理器（列表选择，自动检测已安装的包管理器）
+6. 已通过命令行参数指定的选项跳过询问
+```
+
+Claude Code 会生成如下代码：
+
+```typescript
+// src/prompts.ts
+import inquirer from "inquirer";
+import { existsSync } from "fs";
+import { execSync } from "child_process";
+import type { CLIOptions } from "./cli.js";
+
+export interface ProjectConfig {
+  projectName: string;
+  template: string;
+  typescript: boolean;
+  packageManager: string;
+  install: boolean;
+}
+
+const TEMPLATES = [
+  { name: "React — 单页应用", value: "react" },
+  { name: "Vue — 单页应用", value: "vue" },
+  { name: "Node.js API — Express 后端服务", value: "node-api" },
+  { name: "静态网站 — HTML + CSS + JS", value: "static" },
+];
+
+function isInstalled(command: string): boolean {
+  try {
+    execSync(`${command} --version`, { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getAvailablePackageManagers() {
+  const managers = ["npm", "yarn", "pnpm"];
+  return managers.filter(isInstalled);
+}
+
+export async function promptUser(
+  projectName: string | undefined,
+  options: CLIOptions
+): Promise<ProjectConfig> {
+  const questions: any[] = [];
+
+  if (!projectName) {
+    questions.push({
+      type: "input",
+      name: "projectName",
+      message: "项目名称：",
+      default: "my-project",
+      validate: (input: string) => {
+        if (!/^[a-z0-9-_]+$/.test(input)) {
+          return "项目名只能包含小写字母、数字、连字符和下划线";
+        }
+        if (existsSync(input)) {
+          return `目录 ${input} 已存在`;
+        }
+        return true;
+      },
+    });
+  }
+
+  if (!options.template) {
+    questions.push({
+      type: "list",
+      name: "template",
+      message: "选择项目模板：",
+      choices: TEMPLATES,
+    });
+  }
+
+  if (options.typescript === undefined || !options.typescript) {
+    questions.push({
+      type: "confirm",
+      name: "typescript",
+      message: "使用 TypeScript？",
+      default: true,
+    });
+  }
+
+  if (!options.packageManager) {
+    const available = getAvailablePackageManagers();
+    questions.push({
+      type: "list",
+      name: "packageManager",
+      message: "选择包管理器：",
+      choices: available,
+      default: "npm",
+    });
+  }
+
+  const answers = await inquirer.prompt(questions);
+
+  return {
+    projectName: projectName || answers.projectName,
+    template: options.template || answers.template,
+    typescript: options.typescript || answers.typescript || false,
+    packageManager: options.packageManager || answers.packageManager || "npm",
+    install: options.install !== false,
+  };
+}
+```
+
+<CalloutBox type="tip">
+用 Inquirer.js 做交互式提示时，建议给每个问题设置合理的默认值，减少用户输入负担。Claude Code 通常会自动考虑到这一点。
+</CalloutBox>
+
+## 第五步：项目生成器
+
+### 核心生成逻辑
+
+```
+创建 src/generator.ts，实现项目生成逻辑：
+1. 创建目标目录
+2. 从 templates/ 目录复制对应模板文件
+3. 根据是否选择 TypeScript 做文件转换（重命名 .js 为 .ts 等）
+4. 动态修改 package.json 中的项目名称
+5. 使用 ora 显示加载动画
+6. 如果需要，自动运行包管理器安装依赖
+```
+
+```typescript
+// src/generator.ts
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+import fse from "fs-extra";
+import ora from "ora";
+import { execSync } from "child_process";
+import type { ProjectConfig } from "./prompts.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const TEMPLATES_DIR = join(__dirname, "..", "templates");
+
+export async function generateProject(config: ProjectConfig) {
+  const targetDir = join(process.cwd(), config.projectName);
+  const templateDir = join(TEMPLATES_DIR, config.template);
+
+  // 1. 复制模板文件
+  const spinner = ora("正在生成项目文件...").start();
+
+  try {
+    if (!fse.existsSync(templateDir)) {
+      spinner.fail();
+      throw new Error(`模板 "${config.template}" 不存在`);
+    }
+
+    await fse.copy(templateDir, targetDir);
+
+    // 2. 修改 package.json
+    const pkgPath = join(targetDir, "package.json");
+    if (fse.existsSync(pkgPath)) {
+      const pkg = await fse.readJson(pkgPath);
+      pkg.name = config.projectName;
+      await fse.writeJson(pkgPath, pkg, { spaces: 2 });
+    }
+
+    // 3. 处理 TypeScript 配置
+    if (config.typescript) {
+      await setupTypeScript(targetDir, config.template);
+    }
+
+    // 4. 创建 .gitignore
+    const gitignorePath = join(targetDir, ".gitignore");
+    if (!fse.existsSync(gitignorePath)) {
+      await fse.writeFile(
+        gitignorePath,
+        "node_modules/\ndist/\n.env\n.env.local\n"
+      );
+    }
+
+    spinner.succeed("项目文件生成完成");
+  } catch (error) {
+    spinner.fail("项目文件生成失败");
+    throw error;
+  }
+
+  // 5. 安装依赖
+  if (config.install) {
+    const installSpinner = ora("正在安装依赖...").start();
+    try {
+      execSync(`${config.packageManager} install`, {
+        cwd: targetDir,
+        stdio: "ignore",
+      });
+      installSpinner.succeed("依赖安装完成");
+    } catch {
+      installSpinner.warn("依赖安装失败，请手动安装");
+    }
+  }
+
+  // 6. 初始化 Git
+  const gitSpinner = ora("初始化 Git 仓库...").start();
+  try {
+    execSync("git init", { cwd: targetDir, stdio: "ignore" });
+    gitSpinner.succeed("Git 仓库初始化完成");
+  } catch {
+    gitSpinner.warn("Git 初始化失败，请手动执行 git init");
+  }
+}
+
+async function setupTypeScript(targetDir: string, template: string) {
+  // 根据不同模板添加 TypeScript 配置
+  const tsConfig = {
+    compilerOptions: {
+      target: "ES2020",
+      module: "ESNext",
+      moduleResolution: "bundler",
+      strict: true,
+      esModuleInterop: true,
+      skipLibCheck: true,
+      forceConsistentCasingInFileNames: true,
+      outDir: "./dist",
+      rootDir: "./src",
+    },
+    include: ["src"],
+    exclude: ["node_modules", "dist"],
+  };
+
+  await fse.writeJson(join(targetDir, "tsconfig.json"), tsConfig, {
+    spaces: 2,
+  });
+}
+```
+
+### 创建模板文件
+
+```
+为 templates/ 目录创建四套基础模板：
+1. react/ — 一个最小化的 React + Vite 项目
+2. vue/ — 一个最小化的 Vue + Vite 项目
+3. node-api/ — 一个 Express 基础 API 项目
+4. static/ — 一个简单的 HTML + CSS + JS 项目
+
+每个模板只需要包含最核心的文件：package.json、入口文件、基础配置
+```
+
+Claude Code 会为每个模板创建相应的文件。这一步你可以根据自己的需求调整模板内容。
+
+## 第六步：错误处理与用户体验
+
+### 优化错误信息
+
+```
+改进错误处理，添加以下场景的友好提示：
+1. 目标目录已存在时，询问用户是覆盖还是取消
+2. 模板名称不合法时，列出所有可用模板
+3. 网络问题导致依赖安装失败时，提示手动安装命令
+4. 用户按 Ctrl+C 取消时优雅退出
+5. 权限不足时给出解决建议
+```
+
+### 添加彩色输出和进度展示
+
+```
+优化控制台输出：
+1. 使用 chalk 为不同类型的信息添加颜色（成功绿色、警告黄色、错误红色）
+2. 使用 ora 为耗时操作显示加载动画
+3. 项目创建完成后，用清晰的格式展示后续步骤
+4. 在开始时显示一个 ASCII art 标题
+```
+
+## 第七步：测试
+
+### 编写测试用例
+
+```
+为 CLI 工具编写测试，使用 Vitest：
+1. 测试 CLI 参数解析：各种参数组合是否正确解析
+2. 测试项目名称验证：合法和非法名称
+3. 测试项目生成：模板文件是否正确复制
+4. 测试 package.json 中的项目名是否正确替换
+5. 使用临时目录进行测试，测试后清理
+```
+
+Claude Code 会生成类似这样的测试代码：
+
+```typescript
+// tests/generator.test.ts
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { join } from "path";
+import fse from "fs-extra";
+import os from "os";
+import { generateProject } from "../src/generator.js";
+
+describe("generateProject", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await fse.mkdtemp(join(os.tmpdir(), "quickstart-test-"));
+    process.chdir(tempDir);
+  });
+
+  afterEach(async () => {
+    await fse.remove(tempDir);
+  });
+
+  it("应该正确创建 React 项目", async () => {
+    await generateProject({
+      projectName: "test-react-app",
+      template: "react",
+      typescript: false,
+      packageManager: "npm",
+      install: false,
+    });
+
+    const targetDir = join(tempDir, "test-react-app");
+    expect(fse.existsSync(targetDir)).toBe(true);
+    expect(fse.existsSync(join(targetDir, "package.json"))).toBe(true);
+
+    const pkg = await fse.readJson(join(targetDir, "package.json"));
+    expect(pkg.name).toBe("test-react-app");
+  });
+
+  it("应该在选择 TypeScript 时创建 tsconfig.json", async () => {
+    await generateProject({
+      projectName: "test-ts-app",
+      template: "react",
+      typescript: true,
+      packageManager: "npm",
+      install: false,
+    });
+
+    const targetDir = join(tempDir, "test-ts-app");
+    expect(fse.existsSync(join(targetDir, "tsconfig.json"))).toBe(true);
+  });
+
+  it("当模板不存在时应该抛出错误", async () => {
+    await expect(
+      generateProject({
+        projectName: "test-app",
+        template: "nonexistent",
+        typescript: false,
+        packageManager: "npm",
+        install: false,
+      })
+    ).rejects.toThrow('模板 "nonexistent" 不存在');
+  });
+});
+```
+
+### 本地测试
+
+在发布之前，先在本地测试：
+
+```
+帮我在本地测试这个 CLI 工具：
+1. 构建项目
+2. 使用 npm link 在本地注册全局命令
+3. 在一个临时目录中运行 create-quickstart 测试一下
+```
+
+```bash
+# 构建
+npm run build
+
+# 本地链接
+npm link
+
+# 测试运行
+cd /tmp
+create-quickstart test-project
+```
+
+## 第八步：发布到 npm
+
+### 准备发布
+
+```
+帮我准备 npm 发布：
+1. 确保 package.json 中的 files 字段正确（只包含 dist 和 templates）
+2. 添加 README.md 说明文档
+3. 添加 LICENSE 文件（MIT）
+4. 添加 .npmignore 排除不需要的文件
+5. 检查 package.json 中的所有必要字段（name, version, description, keywords, author, license, repository）
+```
+
+### 执行发布
+
+```bash
+# 登录 npm（如果还没有登录）
+npm login
+
+# 检查将要发布的文件
+npm pack --dry-run
+
+# 发布
+npm publish
+```
+
+<CalloutBox type="warning">
+发布前务必运行 `npm pack --dry-run` 检查即将发布的文件列表，确保没有包含敏感信息（如 `.env` 文件）或不必要的大文件。
+</CalloutBox>
+
+### 发布后验证
+
+```bash
+# 全局安装自己的包
+npm install -g create-quickstart
+
+# 测试
+create-quickstart my-awesome-project
+```
+
+## 进阶优化方向
+
+完成基础版本后，你可以继续让 Claude Code 帮你添加更多功能：
+
+```
+为 create-quickstart 添加以下进阶功能：
+1. 支持从 GitHub 仓库模板创建（--from-github <url>）
+2. 添加插件系统，支持在模板中配置可选的工具（ESLint、Prettier、Husky 等）
+3. 添加更新检查，提示用户升级到最新版本
+4. 支持 --dry-run 选项，预览将要创建的文件而不实际创建
+```
+
+## 经验总结
+
+构建 CLI 工具时，使用 Claude Code 的几个关键点：
+
+1. **先设计后实现**：让 Claude Code 先帮你设计项目结构和 API，确认无误后再开始编码
+2. **模块化开发**：将 CLI 拆分为独立模块（参数解析、交互提示、生成器），逐个实现
+3. **用户体验优先**：CLI 工具的用户体验至关重要，让 Claude Code 帮你添加颜色输出、进度动画、友好的错误信息
+4. **充分测试**：CLI 工具有很多边界情况（不同操作系统、不同参数组合），让 Claude Code 帮你覆盖这些场景
+5. **善用 npm 生态**：Commander.js、Inquirer.js、chalk、ora 等成熟库可以大大简化开发，Claude Code 对这些库非常熟悉
+
+<CalloutBox type="info">
+CLI 工具是一个非常适合用 Claude Code 来构建的项目类型。因为 CLI 的逻辑通常是线性的、模块化的，非常适合分步骤描述需求。掌握了本篇的方法论，你可以用类似的流程构建各种 CLI 工具：代码生成器、部署工具、数据迁移脚本等。
+</CalloutBox>

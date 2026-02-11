@@ -1,0 +1,908 @@
+---
+title: "构建 API 服务"
+description: "使用 Claude Code 构建一个生产级别的 REST API 服务，涵盖框架选型、数据库设计、认证鉴权、输入验证和测试"
+order: 3
+section: practical
+difficulty: intermediate
+readingTime: 20
+pubDate: 2026-02-09
+tags: ["实战", "API", "REST", "后端"]
+---
+
+## 概述
+
+API 服务是现代应用的基石。本篇将带你使用 Claude Code 构建一个功能完备的 REST API 服务 —— 一个博客文章管理 API。我们将使用 Hono 框架（轻量、快速、类型安全），搭配 Drizzle ORM 和 SQLite 数据库。
+
+通过这个实战项目，你将学到：
+
+- 如何让 Claude Code 帮你选择和配置后端框架
+- 数据库模型设计和 ORM 配置
+- RESTful API 端点设计与实现
+- JWT 认证中间件
+- 使用 Zod 做输入验证
+- 统一的错误处理模式
+- API 文档自动生成
+- 编写 API 测试
+
+## 第一步：框架选型与项目初始化
+
+### 让 Claude Code 帮你选型
+
+在开始之前，你可以让 Claude Code 帮你分析不同框架的优劣：
+
+```
+我要构建一个 REST API 服务，请比较以下三个 Node.js 框架，帮我选择最合适的：
+- Express
+- Fastify
+- Hono
+
+我的需求是：TypeScript 优先、类型安全、性能好、开发体验好
+```
+
+Claude Code 会给出详细的对比分析。对于新项目，Hono 是一个很好的选择：它天生支持 TypeScript、体积小、性能出色，而且 API 设计简洁。
+
+### 初始化项目
+
+```
+帮我创建一个博客 API 项目，使用以下技术栈：
+- 运行时：Node.js
+- 框架：Hono
+- ORM：Drizzle ORM
+- 数据库：SQLite（使用 better-sqlite3）
+- 验证：Zod
+- 认证：JWT（使用 hono/jwt）
+- 语言：TypeScript
+
+请初始化项目并安装所有依赖
+```
+
+Claude Code 会创建项目并安装依赖。最终的项目结构如下：
+
+```
+blog-api/
+├── src/
+│   ├── index.ts           # 应用入口
+│   ├── db/
+│   │   ├── schema.ts      # 数据库模型定义
+│   │   ├── index.ts       # 数据库连接
+│   │   └── migrate.ts     # 迁移脚本
+│   ├── routes/
+│   │   ├── auth.ts        # 认证路由
+│   │   ├── posts.ts       # 文章路由
+│   │   └── users.ts       # 用户路由
+│   ├── middleware/
+│   │   ├── auth.ts        # 认证中间件
+│   │   └── error.ts       # 错误处理中间件
+│   ├── validators/
+│   │   ├── auth.ts        # 认证相关验证
+│   │   └── post.ts        # 文章相关验证
+│   └── types/
+│       └── index.ts       # 类型定义
+├── tests/
+│   ├── auth.test.ts
+│   └── posts.test.ts
+├── drizzle.config.ts
+├── package.json
+└── tsconfig.json
+```
+
+## 第二步：数据库设计
+
+### 定义数据模型
+
+```
+使用 Drizzle ORM 定义以下数据模型：
+
+1. users 表：
+   - id: 自增主键
+   - email: 唯一、非空
+   - username: 唯一、非空
+   - passwordHash: 非空
+   - bio: 可选
+   - createdAt: 默认当前时间
+
+2. posts 表：
+   - id: 自增主键
+   - title: 非空
+   - slug: 唯一、非空（从标题自动生成）
+   - content: 非空
+   - excerpt: 可选（文章摘要）
+   - published: 布尔值，默认 false
+   - authorId: 外键关联 users
+   - createdAt: 默认当前时间
+   - updatedAt: 默认当前时间
+
+3. tags 表：
+   - id: 自增主键
+   - name: 唯一、非空
+
+4. post_tags 关联表：
+   - postId: 外键
+   - tagId: 外键
+   - 联合主键
+```
+
+Claude Code 会生成 Drizzle schema 文件：
+
+```typescript
+// src/db/schema.ts
+import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull().unique(),
+  username: text("username").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  bio: text("bio"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const posts = sqliteTable("posts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  content: text("content").notNull(),
+  excerpt: text("excerpt"),
+  published: integer("published", { mode: "boolean" }).notNull().default(false),
+  authorId: integer("author_id")
+    .notNull()
+    .references(() => users.id),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const tags = sqliteTable("tags", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+});
+
+export const postTags = sqliteTable("post_tags", {
+  postId: integer("post_id")
+    .notNull()
+    .references(() => posts.id),
+  tagId: integer("tag_id")
+    .notNull()
+    .references(() => tags.id),
+});
+```
+
+### 数据库连接和迁移
+
+```
+创建数据库连接文件和迁移配置：
+1. src/db/index.ts — 创建数据库连接实例
+2. drizzle.config.ts — Drizzle Kit 配置
+3. 添加 npm script 来运行迁移
+```
+
+```typescript
+// src/db/index.ts
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database from "better-sqlite3";
+import * as schema from "./schema.js";
+
+const sqlite = new Database(process.env.DATABASE_URL || "blog.db");
+export const db = drizzle(sqlite, { schema });
+```
+
+## 第三步：输入验证
+
+### 使用 Zod 定义验证规则
+
+```
+使用 Zod 创建输入验证 schema：
+
+1. validators/auth.ts:
+   - 注册：email（合法邮箱）、username（3-20字符，字母数字下划线）、password（8位以上）
+   - 登录：email、password
+
+2. validators/post.ts:
+   - 创建文章：title（1-200字符）、content（非空）、excerpt（可选，最长500字符）、tags（字符串数组，可选）、published（布尔值，可选）
+   - 更新文章：所有字段可选
+   - 查询参数：page（正整数）、limit（1-100）、tag（字符串）、published（布尔值）
+```
+
+Claude Code 会生成类型安全的验证规则：
+
+```typescript
+// src/validators/auth.ts
+import { z } from "zod";
+
+export const signupSchema = z.object({
+  email: z.string().email("请输入有效的邮箱地址"),
+  username: z
+    .string()
+    .min(3, "用户名至少 3 个字符")
+    .max(20, "用户名最多 20 个字符")
+    .regex(/^[a-zA-Z0-9_]+$/, "用户名只能包含字母、数字和下划线"),
+  password: z.string().min(8, "密码至少 8 个字符"),
+});
+
+export const loginSchema = z.object({
+  email: z.string().email("请输入有效的邮箱地址"),
+  password: z.string().min(1, "请输入密码"),
+});
+
+export type SignupInput = z.infer<typeof signupSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
+```
+
+```typescript
+// src/validators/post.ts
+import { z } from "zod";
+
+export const createPostSchema = z.object({
+  title: z.string().min(1, "标题不能为空").max(200, "标题最多 200 个字符"),
+  content: z.string().min(1, "内容不能为空"),
+  excerpt: z.string().max(500, "摘要最多 500 个字符").optional(),
+  tags: z.array(z.string()).optional(),
+  published: z.boolean().optional().default(false),
+});
+
+export const updatePostSchema = createPostSchema.partial();
+
+export const queryPostsSchema = z.object({
+  page: z.coerce.number().int().positive().optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+  tag: z.string().optional(),
+  published: z
+    .enum(["true", "false"])
+    .transform((v) => v === "true")
+    .optional(),
+});
+
+export type CreatePostInput = z.infer<typeof createPostSchema>;
+export type UpdatePostInput = z.infer<typeof updatePostSchema>;
+export type QueryPostsInput = z.infer<typeof queryPostsSchema>;
+```
+
+<CalloutBox type="tip">
+Zod 与 TypeScript 配合得非常好。使用 `z.infer` 可以从验证 schema 自动推导出 TypeScript 类型，避免重复定义。Claude Code 通常会自动使用这个模式。
+</CalloutBox>
+
+## 第四步：认证中间件
+
+### JWT 认证实现
+
+```
+实现 JWT 认证：
+1. 注册端点：验证输入 -> 检查邮箱唯一性 -> 哈希密码 -> 创建用户 -> 返回 token
+2. 登录端点：验证输入 -> 查找用户 -> 验证密码 -> 返回 token
+3. 认证中间件：从 Authorization header 提取 token -> 验证 -> 将用户信息注入上下文
+4. Token 载荷包含 userId 和 username
+```
+
+```typescript
+// src/middleware/auth.ts
+import { createMiddleware } from "hono/factory";
+import { verify } from "hono/jwt";
+import { HTTPException } from "hono/http-exception";
+
+type AuthEnv = {
+  Variables: {
+    userId: number;
+    username: string;
+  };
+};
+
+export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
+  const authHeader = c.req.header("Authorization");
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new HTTPException(401, { message: "缺少认证令牌" });
+  }
+
+  const token = authHeader.slice(7);
+
+  try {
+    const payload = await verify(token, process.env.JWT_SECRET || "secret");
+    c.set("userId", payload.userId as number);
+    c.set("username", payload.username as string);
+    await next();
+  } catch {
+    throw new HTTPException(401, { message: "无效的认证令牌" });
+  }
+});
+```
+
+### 认证路由
+
+```typescript
+// src/routes/auth.ts
+import { Hono } from "hono";
+import { sign } from "hono/jwt";
+import bcrypt from "bcryptjs";
+import { db } from "../db/index.js";
+import { users } from "../db/schema.js";
+import { eq } from "drizzle-orm";
+import { signupSchema, loginSchema } from "../validators/auth.js";
+
+const auth = new Hono();
+
+auth.post("/signup", async (c) => {
+  const body = await c.req.json();
+  const input = signupSchema.parse(body);
+
+  // 检查邮箱是否已注册
+  const existing = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, input.email))
+    .get();
+
+  if (existing) {
+    return c.json({ error: "该邮箱已被注册" }, 409);
+  }
+
+  // 创建用户
+  const passwordHash = await bcrypt.hash(input.password, 12);
+  const result = await db
+    .insert(users)
+    .values({
+      email: input.email,
+      username: input.username,
+      passwordHash,
+    })
+    .returning()
+    .get();
+
+  // 生成 token
+  const token = await sign(
+    { userId: result.id, username: result.username },
+    process.env.JWT_SECRET || "secret"
+  );
+
+  return c.json({
+    user: { id: result.id, email: result.email, username: result.username },
+    token,
+  }, 201);
+});
+
+auth.post("/login", async (c) => {
+  const body = await c.req.json();
+  const input = loginSchema.parse(body);
+
+  const user = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, input.email))
+    .get();
+
+  if (!user) {
+    return c.json({ error: "邮箱或密码错误" }, 401);
+  }
+
+  const validPassword = await bcrypt.compare(input.password, user.passwordHash);
+  if (!validPassword) {
+    return c.json({ error: "邮箱或密码错误" }, 401);
+  }
+
+  const token = await sign(
+    { userId: user.id, username: user.username },
+    process.env.JWT_SECRET || "secret"
+  );
+
+  return c.json({
+    user: { id: user.id, email: user.email, username: user.username },
+    token,
+  });
+});
+
+export default auth;
+```
+
+## 第五步：CRUD 端点实现
+
+### 文章路由
+
+```
+实现文章的 CRUD 端点：
+
+GET    /api/posts          — 获取文章列表（分页、筛选、公开文章）
+GET    /api/posts/:slug    — 获取单篇文章（含作者信息和标签）
+POST   /api/posts          — 创建文章（需认证）
+PUT    /api/posts/:id      — 更新文章（需认证，仅作者可操作）
+DELETE /api/posts/:id      — 删除文章（需认证，仅作者可操作）
+
+每个端点都要：
+1. 使用 Zod 验证输入
+2. 检查权限
+3. 返回统一格式的 JSON 响应
+4. 处理不存在的资源（404）
+```
+
+Claude Code 会生成完整的路由代码。以下是关键部分：
+
+```typescript
+// src/routes/posts.ts
+import { Hono } from "hono";
+import { db } from "../db/index.js";
+import { posts, users, tags, postTags } from "../db/schema.js";
+import { eq, desc, and, sql } from "drizzle-orm";
+import { authMiddleware } from "../middleware/auth.js";
+import {
+  createPostSchema,
+  updatePostSchema,
+  queryPostsSchema,
+} from "../validators/post.js";
+
+const postsRouter = new Hono();
+
+// 获取文章列表（公开）
+postsRouter.get("/", async (c) => {
+  const query = queryPostsSchema.parse(c.req.query());
+  const offset = (query.page - 1) * query.limit;
+
+  const conditions = [];
+  if (query.published !== undefined) {
+    conditions.push(eq(posts.published, query.published));
+  } else {
+    // 默认只返回已发布的文章
+    conditions.push(eq(posts.published, true));
+  }
+
+  const results = await db
+    .select({
+      id: posts.id,
+      title: posts.title,
+      slug: posts.slug,
+      excerpt: posts.excerpt,
+      published: posts.published,
+      createdAt: posts.createdAt,
+      author: {
+        id: users.id,
+        username: users.username,
+      },
+    })
+    .from(posts)
+    .innerJoin(users, eq(posts.authorId, users.id))
+    .where(and(...conditions))
+    .orderBy(desc(posts.createdAt))
+    .limit(query.limit)
+    .offset(offset);
+
+  // 获取总数
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(posts)
+    .where(and(...conditions))
+    .get();
+
+  return c.json({
+    data: results,
+    pagination: {
+      page: query.page,
+      limit: query.limit,
+      total: countResult?.count || 0,
+      totalPages: Math.ceil((countResult?.count || 0) / query.limit),
+    },
+  });
+});
+
+// 获取单篇文章
+postsRouter.get("/:slug", async (c) => {
+  const slug = c.req.param("slug");
+
+  const post = await db
+    .select({
+      id: posts.id,
+      title: posts.title,
+      slug: posts.slug,
+      content: posts.content,
+      excerpt: posts.excerpt,
+      published: posts.published,
+      createdAt: posts.createdAt,
+      updatedAt: posts.updatedAt,
+      author: {
+        id: users.id,
+        username: users.username,
+        bio: users.bio,
+      },
+    })
+    .from(posts)
+    .innerJoin(users, eq(posts.authorId, users.id))
+    .where(eq(posts.slug, slug))
+    .get();
+
+  if (!post) {
+    return c.json({ error: "文章不存在" }, 404);
+  }
+
+  return c.json({ data: post });
+});
+
+// 创建文章（需认证）
+postsRouter.post("/", authMiddleware, async (c) => {
+  const body = await c.req.json();
+  const input = createPostSchema.parse(body);
+  const userId = c.get("userId");
+
+  // 生成 slug
+  const slug = generateSlug(input.title);
+
+  const post = await db
+    .insert(posts)
+    .values({
+      title: input.title,
+      slug,
+      content: input.content,
+      excerpt: input.excerpt,
+      published: input.published,
+      authorId: userId,
+    })
+    .returning()
+    .get();
+
+  // 处理标签
+  if (input.tags && input.tags.length > 0) {
+    for (const tagName of input.tags) {
+      let tag = await db
+        .select()
+        .from(tags)
+        .where(eq(tags.name, tagName))
+        .get();
+
+      if (!tag) {
+        tag = await db
+          .insert(tags)
+          .values({ name: tagName })
+          .returning()
+          .get();
+      }
+
+      await db.insert(postTags).values({
+        postId: post.id,
+        tagId: tag.id,
+      });
+    }
+  }
+
+  return c.json({ data: post }, 201);
+});
+
+// 更新文章（需认证 + 权限检查）
+postsRouter.put("/:id", authMiddleware, async (c) => {
+  const postId = parseInt(c.req.param("id"));
+  const userId = c.get("userId");
+
+  const existingPost = await db
+    .select()
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .get();
+
+  if (!existingPost) {
+    return c.json({ error: "文章不存在" }, 404);
+  }
+
+  if (existingPost.authorId !== userId) {
+    return c.json({ error: "无权修改此文章" }, 403);
+  }
+
+  const body = await c.req.json();
+  const input = updatePostSchema.parse(body);
+
+  const updated = await db
+    .update(posts)
+    .set({
+      ...input,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(posts.id, postId))
+    .returning()
+    .get();
+
+  return c.json({ data: updated });
+});
+
+// 删除文章（需认证 + 权限检查）
+postsRouter.delete("/:id", authMiddleware, async (c) => {
+  const postId = parseInt(c.req.param("id"));
+  const userId = c.get("userId");
+
+  const existingPost = await db
+    .select()
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .get();
+
+  if (!existingPost) {
+    return c.json({ error: "文章不存在" }, 404);
+  }
+
+  if (existingPost.authorId !== userId) {
+    return c.json({ error: "无权删除此文章" }, 403);
+  }
+
+  // 先删除关联的标签
+  await db.delete(postTags).where(eq(postTags.postId, postId));
+  // 再删除文章
+  await db.delete(posts).where(eq(posts.id, postId));
+
+  return c.json({ message: "文章已删除" });
+});
+
+function generateSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .concat("-", Date.now().toString(36));
+}
+
+export default postsRouter;
+```
+
+## 第六步：统一错误处理
+
+### 全局错误处理中间件
+
+```
+实现统一的错误处理：
+1. 捕获 Zod 验证错误，返回 400 和具体的字段错误信息
+2. 捕获 HTTP 异常，返回对应的状态码和消息
+3. 捕获未预期的错误，返回 500 并记录日志
+4. 所有错误响应使用统一格式：{ error: string, details?: any }
+```
+
+```typescript
+// src/middleware/error.ts
+import { ErrorHandler } from "hono";
+import { HTTPException } from "hono/http-exception";
+import { ZodError } from "zod";
+
+export const errorHandler: ErrorHandler = (err, c) => {
+  // Zod 验证错误
+  if (err instanceof ZodError) {
+    const fieldErrors = err.errors.map((e) => ({
+      field: e.path.join("."),
+      message: e.message,
+    }));
+    return c.json(
+      { error: "输入验证失败", details: fieldErrors },
+      400
+    );
+  }
+
+  // HTTP 异常（认证失败、权限不足等）
+  if (err instanceof HTTPException) {
+    return c.json(
+      { error: err.message },
+      err.status
+    );
+  }
+
+  // 未预期的错误
+  console.error("未处理的错误：", err);
+  return c.json(
+    { error: "服务器内部错误" },
+    500
+  );
+};
+```
+
+### 组装应用
+
+```typescript
+// src/index.ts
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { logger } from "hono/logger";
+import auth from "./routes/auth.js";
+import postsRouter from "./routes/posts.js";
+import { errorHandler } from "./middleware/error.js";
+
+const app = new Hono();
+
+// 全局中间件
+app.use("*", logger());
+app.use("*", cors());
+
+// 全局错误处理
+app.onError(errorHandler);
+
+// 健康检查
+app.get("/health", (c) => c.json({ status: "ok" }));
+
+// 路由挂载
+app.route("/api/auth", auth);
+app.route("/api/posts", postsRouter);
+
+// 404 处理
+app.notFound((c) => c.json({ error: "接口不存在" }, 404));
+
+export default {
+  port: process.env.PORT || 3000,
+  fetch: app.fetch,
+};
+```
+
+## 第七步：API 文档
+
+### 自动生成文档
+
+```
+为 API 添加 OpenAPI 文档：
+1. 使用 hono 的 OpenAPI 插件 @hono/zod-openapi
+2. 为每个端点添加 OpenAPI 描述
+3. 在 /docs 路径提供 Swagger UI
+4. 包含请求和响应的 schema 定义
+```
+
+<CalloutBox type="tip">
+如果不想引入 OpenAPI 工具链的复杂性，也可以让 Claude Code 直接生成一个 Markdown 格式的 API 文档。只需告诉它：「根据现有的路由代码，生成一份 API 文档，包含每个端点的 URL、方法、参数、请求体和响应示例」。
+</CalloutBox>
+
+## 第八步：编写测试
+
+### API 测试
+
+```
+使用 Vitest 为 API 编写测试：
+1. 测试认证流程：注册 -> 登录 -> 获取 token
+2. 测试文章 CRUD：创建、读取、更新、删除
+3. 测试权限控制：未登录不能创建，非作者不能修改
+4. 测试输入验证：不合法的输入应返回 400
+5. 测试分页和筛选
+6. 每个测试使用独立的内存数据库
+```
+
+Claude Code 会生成完整的测试文件：
+
+```typescript
+// tests/posts.test.ts
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import app from "../src/index.js";
+
+describe("Posts API", () => {
+  let authToken: string;
+  let userId: number;
+
+  beforeAll(async () => {
+    // 注册并登录获取 token
+    const signupRes = await app.request("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "test@example.com",
+        username: "testuser",
+        password: "password123",
+      }),
+    });
+
+    const data = await signupRes.json();
+    authToken = data.token;
+    userId = data.user.id;
+  });
+
+  describe("POST /api/posts", () => {
+    it("认证用户应该能够创建文章", async () => {
+      const res = await app.request("/api/posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          title: "测试文章",
+          content: "这是一篇测试文章的内容。",
+          published: true,
+        }),
+      });
+
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.data.title).toBe("测试文章");
+    });
+
+    it("未认证用户不能创建文章", async () => {
+      const res = await app.request("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "测试文章",
+          content: "内容",
+        }),
+      });
+
+      expect(res.status).toBe(401);
+    });
+
+    it("标题为空时应该返回 400", async () => {
+      const res = await app.request("/api/posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          title: "",
+          content: "内容",
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBe("输入验证失败");
+    });
+  });
+
+  describe("GET /api/posts", () => {
+    it("应该返回分页的文章列表", async () => {
+      const res = await app.request("/api/posts?page=1&limit=10");
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toBeInstanceOf(Array);
+      expect(body.pagination).toBeDefined();
+      expect(body.pagination.page).toBe(1);
+    });
+  });
+
+  describe("DELETE /api/posts/:id", () => {
+    it("作者应该能够删除自己的文章", async () => {
+      // 先创建一篇文章
+      const createRes = await app.request("/api/posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          title: "待删除文章",
+          content: "这篇文章将被删除",
+        }),
+      });
+
+      const { data: post } = await createRes.json();
+
+      // 删除文章
+      const deleteRes = await app.request(`/api/posts/${post.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+
+      expect(deleteRes.status).toBe(200);
+    });
+  });
+});
+```
+
+## 部署准备
+
+当 API 开发完成后，你可以让 Claude Code 帮你做部署前的准备：
+
+```
+帮我做部署前的检查和配置：
+1. 添加环境变量验证（启动时检查必要的环境变量是否存在）
+2. 添加 rate limiting 中间件（防止 API 滥用）
+3. 添加请求日志（记录 method、url、status、耗时）
+4. 创建 Dockerfile
+5. 添加 .env.example 文件列出所有需要的环境变量
+```
+
+<CalloutBox type="warning">
+部署前务必检查：JWT secret 不能使用默认值、数据库文件路径要正确配置、CORS 设置要限制允许的域名。让 Claude Code 帮你检查：「检查代码中是否有安全隐患，特别是硬编码的密钥、开放的 CORS 和缺少的权限检查」。
+</CalloutBox>
+
+## 经验总结
+
+使用 Claude Code 构建 API 服务的关键要点：
+
+1. **先设计 API 接口，再实现**：让 Claude Code 先帮你列出所有端点和数据模型，确认设计合理后再编码
+2. **类型安全贯穿始终**：选择 TypeScript + Zod + Drizzle 这样的组合，让类型检查在编译时就能捕获错误
+3. **分层架构清晰**：路由、中间件、验证、数据库操作各司其职，Claude Code 在清晰的项目结构中表现更好
+4. **安全意识不可少**：Claude Code 可能不会主动考虑所有安全问题，你需要主动提醒它处理认证、权限、输入验证和 rate limiting
+5. **测试驱动开发**：让 Claude Code 先写测试，再实现功能，可以获得更可靠的代码
+6. **利用框架生态**：Hono、Drizzle、Zod 等现代库的 API 设计优雅，Claude Code 能很好地利用它们的能力
+
+<CalloutBox type="info">
+本篇使用的技术栈（Hono + Drizzle + Zod）只是众多选择之一。你也可以让 Claude Code 用 Express + Prisma、Fastify + TypeORM、或者 tRPC 来构建。核心的开发流程和与 Claude Code 的协作方式是相通的。
+</CalloutBox>

@@ -1,0 +1,608 @@
+---
+title: "重构遗留代码"
+description: "使用 Claude Code 系统性地重构遗留代码库，涵盖代码分析、重构策略、TypeScript 迁移和常见陷阱"
+order: 4
+section: practical
+difficulty: advanced
+readingTime: 20
+pubDate: 2026-02-09
+tags: ["实战", "重构", "遗留代码", "TypeScript迁移"]
+---
+
+## 概述
+
+遗留代码（Legacy Code）是每个开发者迟早都会面对的挑战。这些代码可能缺少文档、没有测试、使用过时的模式，甚至连原作者都已经离开团队。Claude Code 在处理遗留代码方面有独特的优势：它能快速阅读和理解大量代码，识别模式和问题，并提出系统性的重构方案。
+
+本篇将通过一个真实场景 —— 将一个老旧的 JavaScript Express API 项目重构为现代化的 TypeScript 项目 —— 来展示如何利用 Claude Code 高效地完成重构工作。
+
+你将学到：
+
+- 如何让 Claude Code 分析和理解遗留代码
+- 制定渐进式重构策略
+- 在重构前添加测试作为安全网
+- TypeScript 迁移的实战技巧
+- 重构过程中常见的陷阱和应对方法
+
+<CalloutBox type="warning">
+重构遗留代码是高风险操作。即使有 Claude Code 的帮助，也要遵循「小步快跑、频繁验证」的原则。每次修改后都要确保现有功能没有被破坏。
+</CalloutBox>
+
+## 第一步：分析代码库
+
+### 让 Claude Code 理解项目
+
+进入遗留项目目录，启动 Claude Code，首先让它对整个项目有全面的了解：
+
+```
+请分析这个项目的代码库，告诉我：
+1. 项目的整体架构和技术栈
+2. 目录结构和文件组织方式
+3. 主要的功能模块有哪些
+4. 使用了哪些依赖库以及它们的版本
+5. 是否有测试？测试覆盖情况如何？
+6. 代码量大概有多少？
+```
+
+Claude Code 会阅读 `package.json`、主要的源代码文件和配置文件，然后给你一份全面的分析报告。例如：
+
+```
+项目分析结果：
+
+技术栈：Node.js + Express + MongoDB (Mongoose)
+语言：JavaScript (ES5/ES6 混用，无 TypeScript)
+目录结构：
+  - routes/ — 15 个路由文件
+  - models/ — 8 个 Mongoose 模型
+  - middleware/ — 3 个中间件
+  - helpers/ — 6 个工具文件
+  - config/ — 数据库和应用配置
+
+主要问题：
+  - 没有测试文件
+  - 回调地狱（未使用 async/await）
+  - 大量全局变量
+  - 部分路由文件超过 500 行
+  - 没有输入验证
+  - 错误处理不统一
+  - 使用 var 声明变量
+  - 部分依赖已过时
+```
+
+### 识别代码问题
+
+让 Claude Code 做更深入的代码质量分析：
+
+```
+深入分析代码质量问题，按严重程度排列。特别关注：
+1. 安全漏洞（SQL 注入、XSS、缺少认证等）
+2. 可能导致 bug 的代码模式
+3. 性能问题
+4. 代码重复
+5. 不良的设计模式
+```
+
+Claude Code 会逐文件分析并生成详细报告。这份报告是制定重构计划的基础。
+
+<CalloutBox type="tip">
+让 Claude Code 分析代码时，可以使用 Plan 模式（输入 `shift+tab` 切换到 Plan 模式）。在 Plan 模式下，Claude Code 会进行更深入的思考但不会直接修改代码，适合分析和规划阶段。
+</CalloutBox>
+
+## 第二步：制定重构策略
+
+### 使用 Plan 模式规划
+
+切换到 Plan 模式，让 Claude Code 帮你制定重构计划：
+
+```
+基于你的分析结果，制定一个分阶段的重构计划。要求：
+1. 每个阶段都是独立可部署的（不能中途破坏现有功能）
+2. 优先修复安全问题
+3. 渐进式引入 TypeScript
+4. 每个阶段结束时项目都能正常运行
+5. 预估每个阶段的工作量
+```
+
+Claude Code 可能会给出这样的计划：
+
+```
+重构计划（分 6 个阶段）：
+
+阶段 1：添加测试安全网（预计 2-3 小时）
+  - 安装 Jest 和 Supertest
+  - 为现有 API 端点编写集成测试
+  - 确保所有核心功能都有测试覆盖
+  - 设置 CI 运行测试
+
+阶段 2：修复安全问题（预计 1-2 小时）
+  - 添加输入验证（express-validator 或 Zod）
+  - 修复认证中间件漏洞
+  - 更新过时的依赖
+  - 添加 rate limiting 和 helmet
+
+阶段 3：代码现代化（预计 2-3 小时）
+  - var -> const/let
+  - 回调 -> async/await
+  - require -> import（ES Modules）
+  - 统一错误处理
+
+阶段 4：TypeScript 迁移（预计 3-4 小时）
+  - 配置 TypeScript
+  - 逐文件迁移（.js -> .ts）
+  - 添加类型定义
+  - 修复类型错误
+
+阶段 5：架构优化（预计 2-3 小时）
+  - 拆分过大的路由文件
+  - 引入服务层（Service Layer）
+  - 提取公共逻辑
+  - 改善数据库查询
+
+阶段 6：完善与文档（预计 1-2 小时）
+  - 补充测试用例
+  - 添加 API 文档
+  - 更新 README
+  - 添加 CLAUDE.md 项目规范
+```
+
+## 第三步：添加测试安全网
+
+### 在重构前先写测试
+
+这是重构最关键的一步。没有测试，你无法确认重构后功能是否依然正常。
+
+```
+为现有的 API 端点编写集成测试。要求：
+1. 安装 Jest 和 Supertest
+2. 创建测试用的数据库配置（使用内存数据库或独立的测试数据库）
+3. 为每个路由文件编写基本的测试：
+   - 正常情况下的请求和响应
+   - 缺少必要参数时的错误响应
+   - 需要认证的端点测试认证检查
+4. 不需要追求 100% 覆盖率，但核心业务路径必须覆盖
+```
+
+Claude Code 会阅读现有的路由代码，理解每个端点的行为，然后编写对应的测试：
+
+```javascript
+// tests/routes/users.test.js
+const request = require("supertest");
+const app = require("../../app");
+const { setupTestDB, teardownTestDB } = require("../helpers/db");
+
+describe("Users API", () => {
+  beforeAll(async () => {
+    await setupTestDB();
+  });
+
+  afterAll(async () => {
+    await teardownTestDB();
+  });
+
+  describe("POST /api/users/register", () => {
+    it("should register a new user", async () => {
+      const res = await request(app)
+        .post("/api/users/register")
+        .send({
+          name: "Test User",
+          email: "test@example.com",
+          password: "password123",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toHaveProperty("token");
+      expect(res.body.user.email).toBe("test@example.com");
+    });
+
+    it("should reject duplicate email", async () => {
+      // 先注册一个用户
+      await request(app).post("/api/users/register").send({
+        name: "First User",
+        email: "duplicate@example.com",
+        password: "password123",
+      });
+
+      // 再用相同邮箱注册
+      const res = await request(app).post("/api/users/register").send({
+        name: "Second User",
+        email: "duplicate@example.com",
+        password: "password456",
+      });
+
+      expect(res.status).toBe(409);
+    });
+  });
+});
+```
+
+运行测试，确保所有测试通过：
+
+```
+运行测试并确认所有测试都能通过。如果有失败的测试，说明测试本身有问题（因为我们还没有改任何代码），请修复测试
+```
+
+<CalloutBox type="info">
+测试是你重构过程中的「安全网」。每次重构后运行测试，如果测试全部通过，就可以放心地继续下一步。如果有测试失败，说明重构引入了问题，需要立即修复。
+</CalloutBox>
+
+## 第四步：渐进式重构
+
+### 阶段式代码现代化
+
+有了测试保障，现在可以开始重构了。关键原则是每次只做一小步，做完就跑测试。
+
+**步骤一：替换 var 为 const/let**
+
+```
+将所有 JavaScript 文件中的 var 替换为 const 或 let。
+- 如果变量后续没有被重新赋值，用 const
+- 如果变量会被重新赋值，用 let
+- 每个文件改完后运行测试确认没有问题
+```
+
+**步骤二：回调转 async/await**
+
+```
+将代码中的回调风格改为 async/await。重点处理：
+1. Mongoose 查询的回调
+2. Express 路由处理函数
+3. 中间件函数
+4. fs 文件操作
+
+注意保持错误处理的一致性，回调中的 err 参数要转换为 try-catch
+```
+
+Claude Code 会做类似这样的转换：
+
+```javascript
+// 重构前（回调风格）
+router.get("/users/:id", function (req, res) {
+  User.findById(req.params.id, function (err, user) {
+    if (err) {
+      return res.status(500).json({ error: "服务器错误" });
+    }
+    if (!user) {
+      return res.status(404).json({ error: "用户不存在" });
+    }
+    res.json(user);
+  });
+});
+
+// 重构后（async/await）
+router.get("/users/:id", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "用户不存在" });
+    }
+    res.json(user);
+  } catch (err) {
+    next(err);
+  }
+});
+```
+
+**步骤三：统一错误处理**
+
+```
+创建一个全局错误处理中间件，替换现有分散的错误处理逻辑：
+1. 创建自定义错误类（AppError），包含 statusCode 和 message
+2. 在路由中使用 throw new AppError() 而不是直接 res.json
+3. 在全局错误处理中间件中统一格式化错误响应
+4. 为 async 路由添加 asyncHandler 包装器
+```
+
+### 验证每个步骤
+
+每完成一个步骤，都要告诉 Claude Code：
+
+```
+运行全部测试，确认这次修改没有破坏任何功能
+```
+
+如果测试失败，立即修复：
+
+```
+tests/routes/users.test.js 中的第三个测试失败了，错误是：
+[粘贴错误信息]
+
+请分析原因并修复。注意是重构代码的问题，不是测试本身的问题
+```
+
+## 第五步：TypeScript 迁移
+
+### 配置 TypeScript
+
+```
+为项目配置 TypeScript：
+1. 安装 typescript、ts-node、@types/node、@types/express 等
+2. 创建 tsconfig.json，使用以下配置：
+   - strict: true（严格模式）
+   - allowJs: true（允许 JS 和 TS 共存，方便渐进式迁移）
+   - outDir: ./dist
+   - rootDir: ./src
+3. 修改 package.json 的脚本
+4. 确保项目在只有 JS 文件时也能正常构建和运行
+```
+
+<CalloutBox type="tip">
+TypeScript 迁移的关键是 `allowJs: true`。这个选项允许 TypeScript 和 JavaScript 文件在同一项目中共存，你可以一个文件一个文件地慢慢迁移，而不需要一次性将所有文件都改为 TypeScript。
+</CalloutBox>
+
+### 逐文件迁移
+
+让 Claude Code 按照依赖关系顺序迁移文件：
+
+```
+按以下顺序将文件从 .js 迁移到 .ts：
+
+1. 先迁移工具文件（helpers/）— 它们通常没有外部依赖
+2. 然后迁移模型文件（models/）— 添加接口定义
+3. 接着迁移中间件（middleware/）
+4. 最后迁移路由文件（routes/）
+
+每迁移一个文件：
+- 将 .js 重命名为 .ts
+- 添加类型注解
+- 修复 TypeScript 报告的类型错误
+- 运行测试确认功能正常
+
+先从 helpers/validator.js 开始
+```
+
+Claude Code 在迁移每个文件时会做以下事情：
+
+```typescript
+// 迁移前: helpers/validator.js
+function validateEmail(email) {
+  var re = /\S+@\S+\.\S+/;
+  return re.test(email);
+}
+
+function validatePassword(password) {
+  if (!password || password.length < 6) {
+    return { valid: false, message: "密码至少6位" };
+  }
+  return { valid: true, message: "" };
+}
+
+module.exports = { validateEmail, validatePassword };
+
+// 迁移后: helpers/validator.ts
+interface ValidationResult {
+  valid: boolean;
+  message: string;
+}
+
+export function validateEmail(email: string): boolean {
+  const re = /\S+@\S+\.\S+/;
+  return re.test(email);
+}
+
+export function validatePassword(password: string): ValidationResult {
+  if (!password || password.length < 6) {
+    return { valid: false, message: "密码至少6位" };
+  }
+  return { valid: true, message: "" };
+}
+```
+
+### 处理复杂类型
+
+Mongoose 模型的 TypeScript 迁移通常是最复杂的部分：
+
+```
+迁移 models/user.js 到 TypeScript。要求：
+1. 定义 IUser 接口描述文档字段
+2. 定义 IUserMethods 接口描述实例方法
+3. 使用 Mongoose 的 Schema.Types 正确定义 schema
+4. 导出类型化的 Model
+5. 保持现有的虚拟字段和中间件
+```
+
+```typescript
+// models/user.ts
+import mongoose, { Schema, Document, Model } from "mongoose";
+
+export interface IUser extends Document {
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: "user" | "admin";
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface IUserMethods {
+  comparePassword(candidatePassword: string): Promise<boolean>;
+  toPublicJSON(): Omit<IUser, "passwordHash">;
+}
+
+type UserModel = Model<IUser, {}, IUserMethods>;
+
+const userSchema = new Schema<IUser, UserModel, IUserMethods>(
+  {
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true, lowercase: true },
+    passwordHash: { type: String, required: true },
+    role: { type: String, enum: ["user", "admin"], default: "user" },
+  },
+  { timestamps: true }
+);
+
+userSchema.methods.comparePassword = async function (
+  candidatePassword: string
+): Promise<boolean> {
+  // bcrypt compare 逻辑
+  const bcrypt = await import("bcryptjs");
+  return bcrypt.compare(candidatePassword, this.passwordHash);
+};
+
+userSchema.methods.toPublicJSON = function () {
+  const obj = this.toObject();
+  delete obj.passwordHash;
+  return obj;
+};
+
+export const User = mongoose.model<IUser, UserModel>("User", userSchema);
+```
+
+## 第六步：架构优化
+
+### 拆分大文件
+
+迁移完成后，让 Claude Code 帮你优化架构：
+
+```
+routes/api.js 有 600 多行代码，包含了用户、文章和评论三个模块的路由。
+请将它拆分为三个独立的路由文件：
+1. routes/users.ts
+2. routes/posts.ts
+3. routes/comments.ts
+
+同时引入服务层，将业务逻辑从路由中提取出来：
+1. services/userService.ts
+2. services/postService.ts
+3. services/commentService.ts
+
+路由只负责：解析请求 -> 调用服务 -> 返回响应
+服务层负责：业务逻辑 -> 数据库操作 -> 返回结果
+```
+
+### 提取公共逻辑
+
+```
+我发现很多路由中有重复的分页逻辑和权限检查逻辑。请：
+1. 创建一个通用的分页工具函数
+2. 创建权限检查中间件（检查用户角色）
+3. 创建资源所有权检查中间件（检查资源是否属于当前用户）
+4. 将所有路由中的重复逻辑替换为这些公共工具
+```
+
+## 常见重构模式
+
+以下是 Claude Code 特别擅长的几种重构模式：
+
+### 模式一：提取函数
+
+```
+这段代码在 routes/posts.ts 的第 45-80 行中进行了复杂的数据转换。
+请将它提取为一个独立的函数，放在 helpers/transforms.ts 中，并添加类型注解
+```
+
+### 模式二：引入策略模式
+
+```
+routes/notifications.ts 中有一个很长的 switch-case 来处理不同类型的通知（邮件、短信、推送）。
+请用策略模式重构它，让每种通知类型都是独立的策略类
+```
+
+### 模式三：消除魔法数字和字符串
+
+```
+扫描所有源代码文件，找出硬编码的数字和字符串常量，将它们提取到
+constants/ 目录下的常量文件中。例如：
+- HTTP 状态码 -> 使用 http-status-codes 库
+- 错误消息 -> 集中到 constants/errors.ts
+- 配置值 -> 移到环境变量或配置文件
+```
+
+## 重构中的陷阱
+
+### 陷阱一：一次改太多
+
+Claude Code 有时会在一次操作中修改太多文件。你应该控制节奏：
+
+```
+// 不推荐
+请将所有 15 个路由文件一次性迁移到 TypeScript
+
+// 推荐
+请先将 routes/users.js 迁移到 TypeScript，迁移完后我们运行测试确认没问题
+```
+
+### 陷阱二：忽视隐式行为
+
+遗留代码中常有一些隐式的行为（如 Mongoose 中间件、Express 中间件的执行顺序），Claude Code 在重构时可能不会注意到这些细节：
+
+```
+在重构 models/user.ts 之前，请先检查 userSchema 上是否注册了
+pre/post 中间件（如 pre save 的密码哈希），确保重构后这些行为被保留
+```
+
+### 陷阱三：过度重构
+
+不是所有代码都需要重构。让 Claude Code 帮你判断优先级：
+
+```
+以下哪些文件值得重构？请根据以下标准评估：
+- 修改频率（经常改动的文件优先）
+- 复杂度（代码复杂的文件优先）
+- bug 历史（经常出 bug 的文件优先）
+- 耦合度（被很多文件依赖的文件优先）
+
+如果某个文件很少修改且运行稳定，即使代码不够优雅也可以暂时不动
+```
+
+### 陷阱四：丢失边界情况
+
+遗留代码中的一些「奇怪」逻辑可能是为了处理特殊的边界情况。在删除或修改之前，先让 Claude Code 分析：
+
+```
+routes/payment.js 的第 120 行有一段看起来很奇怪的逻辑：
+[粘贴代码]
+
+这段代码是什么意思？是 bug 还是有意为之？如果删除它可能会有什么影响？
+```
+
+## 使用 CLAUDE.md 记录重构进度
+
+在项目根目录创建 `CLAUDE.md`，记录重构的上下文和进度：
+
+```markdown
+# 重构说明
+
+## 项目背景
+这是一个正在从 JavaScript 迁移到 TypeScript 的 Express API 项目。
+
+## 当前进度
+- [x] 阶段1：测试安全网
+- [x] 阶段2：安全修复
+- [x] 阶段3：代码现代化
+- [ ] 阶段4：TypeScript 迁移（进行中，已完成 8/15 个文件）
+- [ ] 阶段5：架构优化
+- [ ] 阶段6：完善与文档
+
+## 已迁移的文件
+- helpers/*.ts ✅
+- models/user.ts ✅
+- models/post.ts ✅
+- middleware/auth.ts ✅
+
+## 注意事项
+- models/payment.js 中的 webhook 处理逻辑较复杂，暂不修改
+- routes/legacy-api.js 将被废弃，不需要迁移
+- 所有 Mongoose pre/post hooks 必须保留
+
+## 代码规范
+- 使用 async/await，不要使用回调
+- 使用 const 优先，必要时 let，禁止 var
+- 函数参数和返回值必须有类型注解
+```
+
+这样每次启动 Claude Code，它都会自动读取这个文件，了解项目的上下文和当前进度。
+
+## 经验总结
+
+使用 Claude Code 重构遗留代码的关键要点：
+
+1. **先理解，后动手**：让 Claude Code 充分分析代码库，理解架构和上下文，再开始修改
+2. **测试先行**：重构前必须先建立测试安全网，否则你无法确认重构是否引入了新问题
+3. **小步快跑**：每次只做一个小的、可验证的修改，做完立即运行测试
+4. **渐进式迁移**：特别是 TypeScript 迁移，使用 `allowJs` 让新旧代码共存，一个文件一个文件地迁移
+5. **尊重遗留逻辑**：不要随意删除看不懂的代码，先让 Claude Code 分析它的作用
+6. **记录进度**：用 CLAUDE.md 记录重构上下文和进度，帮助 Claude Code 保持一致性
+7. **知道什么不该动**：稳定运行且很少修改的模块，即使代码不优雅也可以暂时不碰
+
+<CalloutBox type="info">
+重构遗留代码是 Claude Code 最能体现价值的场景之一。一个人类开发者可能需要花数天时间来理解和重构一个复杂模块，而 Claude Code 可以在几分钟内阅读和理解代码，在几小时内完成大部分重构工作。关键是你要作为「领航员」提供方向和判断，让 Claude Code 作为「驾驶员」执行具体操作。
+</CalloutBox>

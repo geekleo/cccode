@@ -1,0 +1,42 @@
+name: 内容纠错 / Bug Report
+description: 报告教程中的错误或过时信息
+title: "[纠错] "
+labels: ["bug", "content"]
+body:
+  - type: dropdown
+    id: section
+    attributes:
+      label: 所属板块
+      options:
+        - 入门篇
+        - 进阶篇
+        - 高级篇
+        - 实战篇
+        - 多平台使用
+        - 最佳实践
+        - 工具对比
+        - 其他
+    validations:
+      required: true
+  - type: input
+    id: page
+    attributes:
+      label: 具体页面
+      description: 问题所在页面的 URL 或标题
+      placeholder: "例：/beginner/01-installation"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 描述你发现的问题
+      placeholder: 请详细描述问题...
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: 建议修改
+      description: 如果有的话，请提供你建议的修改内容
+      placeholder: 可选

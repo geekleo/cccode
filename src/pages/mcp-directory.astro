@@ -1,0 +1,196 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+
+interface MCPServer {
+  name: string;
+  description: string;
+  author: string;
+  repo: string;
+  tags: string[];
+  featured?: boolean;
+}
+
+interface MCPCategory {
+  id: string;
+  icon: string;
+  title: string;
+  servers: MCPServer[];
+}
+
+const categories: MCPCategory[] = [
+  {
+    id: 'data',
+    icon: '🗄️',
+    title: '数据与数据库',
+    servers: [
+      { name: 'PostgreSQL MCP', description: '查询和管理 PostgreSQL 数据库，支持 schema 探索和 SQL 执行', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/postgres', tags: ['database', 'sql'], featured: true },
+      { name: 'SQLite MCP', description: '轻量级 SQLite 数据库操作，适合本地开发', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/sqlite', tags: ['database', 'sql'] },
+      { name: 'Redis MCP', description: 'Redis 缓存和数据结构操作', author: 'Community', repo: 'https://github.com/modelcontextprotocol/servers', tags: ['cache', 'nosql'] },
+    ],
+  },
+  {
+    id: 'dev',
+    icon: '💻',
+    title: '开发工具',
+    servers: [
+      { name: 'GitHub MCP', description: '管理 GitHub 仓库、Issue、PR，执行代码搜索', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/github', tags: ['git', 'code'], featured: true },
+      { name: 'GitLab MCP', description: 'GitLab 项目管理和 CI/CD 操作', author: 'Community', repo: 'https://github.com/modelcontextprotocol/servers', tags: ['git', 'cicd'] },
+      { name: 'Docker MCP', description: '管理 Docker 容器、镜像和网络', author: 'Community', repo: 'https://github.com/modelcontextprotocol/servers', tags: ['devops', 'container'] },
+      { name: 'Sentry MCP', description: '查询和管理 Sentry 错误追踪', author: 'Sentry', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/sentry', tags: ['monitoring', 'debug'] },
+    ],
+  },
+  {
+    id: 'search',
+    icon: '🔍',
+    title: '搜索与信息',
+    servers: [
+      { name: 'Brave Search MCP', description: '使用 Brave Search API 进行网络搜索', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search', tags: ['search', 'web'], featured: true },
+      { name: 'Fetch MCP', description: '抓取网页内容并转换为 Markdown', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/fetch', tags: ['web', 'scraping'] },
+      { name: 'Puppeteer MCP', description: '浏览器自动化，支持截图和页面交互', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer', tags: ['browser', 'automation'] },
+    ],
+  },
+  {
+    id: 'file',
+    icon: '📁',
+    title: '文件与存储',
+    servers: [
+      { name: 'Filesystem MCP', description: '安全的本地文件系统读写操作', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem', tags: ['file', 'local'], featured: true },
+      { name: 'Google Drive MCP', description: '访问和管理 Google Drive 文件', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/gdrive', tags: ['cloud', 'storage'] },
+      { name: 'AWS S3 MCP', description: 'AWS S3 对象存储操作', author: 'Community', repo: 'https://github.com/modelcontextprotocol/servers', tags: ['cloud', 'aws'] },
+    ],
+  },
+  {
+    id: 'ai',
+    icon: '🤖',
+    title: 'AI 与 LLM',
+    servers: [
+      { name: 'Memory MCP', description: '持久化知识图谱，跨会话记忆存储', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory', tags: ['memory', 'knowledge'], featured: true },
+      { name: 'EverArt MCP', description: 'AI 图片生成，支持多种风格模型', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/everart', tags: ['image', 'generation'] },
+    ],
+  },
+  {
+    id: 'comm',
+    icon: '💬',
+    title: '通信与协作',
+    servers: [
+      { name: 'Slack MCP', description: '发送消息、管理频道、搜索 Slack 工作区', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/slack', tags: ['chat', 'team'], featured: true },
+      { name: 'Google Maps MCP', description: '地点搜索、路线规划、地理编码', author: 'Anthropic', repo: 'https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps', tags: ['maps', 'geo'] },
+    ],
+  },
+];
+
+const totalServers = categories.reduce((sum, cat) => sum + cat.servers.length, 0);
+const allTags = [...new Set(categories.flatMap(c => c.servers.flatMap(s => s.tags)))].sort();
+---
+
+<BaseLayout title="MCP 插件目录 - Claude Code 教程" description="Claude Code MCP Server 插件目录，发现和使用社区插件">
+  <!-- Hero -->
+  <div class="relative overflow-hidden border-b border-gray-200 dark:border-gray-800">
+    <div class="absolute inset-0 bg-gradient-to-b from-primary-50 to-white dark:from-primary-950/20 dark:to-gray-950"></div>
+    <div class="bg-grid absolute inset-0 opacity-50"></div>
+    <div class="relative mx-auto max-w-7xl px-4 py-14 sm:px-6">
+      <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-3xl shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+        🔌
+      </div>
+      <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">MCP 插件目录</h1>
+      <p class="mt-3 max-w-2xl text-lg text-gray-600 dark:text-gray-400">
+        发现并使用 MCP Server 插件，扩展 Claude Code 的能力边界。
+      </p>
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700 dark:bg-primary-950/50 dark:text-primary-300">
+          {totalServers}+ 插件
+        </span>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+          {categories.length} 个分类
+        </span>
+        <a href="/advanced/01-mcp-server-intro" class="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
+          什么是 MCP？
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <!-- Category nav -->
+    <div class="mb-10 flex flex-wrap gap-2">
+      {categories.map((cat) => (
+        <a href={`#${cat.id}`} class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 dark:border-gray-700 dark:text-gray-400 dark:hover:border-primary-700 dark:hover:bg-primary-950/50 dark:hover:text-primary-300">
+          <span>{cat.icon}</span>
+          {cat.title}
+          <span class="text-xs text-gray-400 dark:text-gray-500">({cat.servers.length})</span>
+        </a>
+      ))}
+    </div>
+
+    <!-- Install hint -->
+    <div class="mb-10 rounded-xl border border-primary-200 bg-primary-50/50 p-4 dark:border-primary-800 dark:bg-primary-950/20">
+      <p class="text-sm font-medium text-primary-800 dark:text-primary-200">快速安装 MCP Server</p>
+      <div class="mt-2 overflow-x-auto rounded-lg bg-gray-900 px-4 py-3">
+        <code class="text-sm text-green-400">claude mcp add &lt;server-name&gt; -- npx @modelcontextprotocol/server-&lt;name&gt;</code>
+      </div>
+      <p class="mt-2 text-xs text-primary-600 dark:text-primary-400">
+        详细教程参见 <a href="/advanced/02-mcp-server-practice" class="underline hover:no-underline">MCP Server 开发实战</a>
+      </p>
+    </div>
+
+    <!-- Categories -->
+    <div class="space-y-12">
+      {categories.map((cat) => (
+        <section id={cat.id}>
+          <h2 class="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white">
+            <span>{cat.icon}</span>
+            {cat.title}
+          </h2>
+          <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {cat.servers.map((server) => (
+              <a
+                href={server.repo}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="card-hover group flex flex-col rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-primary-300 hover:shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:hover:border-primary-700"
+              >
+                <div class="flex items-start justify-between">
+                  <div class="flex-1">
+                    <h3 class="text-sm font-bold text-gray-900 transition-colors group-hover:text-primary-700 dark:text-white dark:group-hover:text-primary-300">
+                      {server.featured && <span class="mr-1 text-amber-500">⭐</span>}
+                      {server.name}
+                    </h3>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">by {server.author}</p>
+                  </div>
+                  <svg class="h-4 w-4 shrink-0 text-gray-300 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-500 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </div>
+                <p class="mt-2 flex-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{server.description}</p>
+                <div class="mt-3 flex flex-wrap gap-1">
+                  {server.tags.map((tag) => (
+                    <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">{tag}</span>
+                  ))}
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+
+    <!-- CTA -->
+    <div class="mt-16 grid gap-6 sm:grid-cols-2">
+      <div class="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+        <h3 class="font-bold text-gray-900 dark:text-white">开发你自己的 MCP Server</h3>
+        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">学习 MCP 协议，开发自定义工具，扩展 Claude Code 的能力。</p>
+        <a href="/advanced/02-mcp-server-practice" class="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">
+          查看开发教程 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+        </a>
+      </div>
+      <div class="rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 p-6 dark:border-gray-700 dark:bg-gray-900/30">
+        <h3 class="font-bold text-gray-900 dark:text-white">提交你的 MCP Server</h3>
+        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">开发了有用的 MCP Server？提交 PR 加入目录，与社区分享。</p>
+        <a href="https://github.com/modelcontextprotocol/servers" target="_blank" rel="noopener noreferrer" class="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">
+          前往提交 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</BaseLayout>

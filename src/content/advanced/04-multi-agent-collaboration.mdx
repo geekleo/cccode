@@ -1,0 +1,474 @@
+---
+title: "多 Agent 协作"
+description: "掌握 Claude Code 多 Agent 协作模式，实现复杂任务的并行处理与流水线编排"
+order: 4
+section: advanced
+difficulty: advanced
+readingTime: 12
+pubDate: 2026-02-09
+tags: ["多Agent", "协作", "自动化", "headless"]
+---
+
+## 理解多 Agent 模式
+
+在处理大型复杂任务时，单个 Claude Code 实例可能不足以高效完成所有工作。多 Agent 协作模式允许你同时运行多个 Claude Code 实例，每个实例专注于不同的子任务，最终协作完成整体目标。
+
+### 什么是多 Agent
+
+多 Agent 协作是指通过编排多个 Claude Code 实例（Agent），让它们各自独立地执行子任务，然后将结果汇总。这就像一个开发团队中的成员分工协作：
+
+- **前端 Agent**：负责 UI 组件开发
+- **后端 Agent**：负责 API 接口实现
+- **测试 Agent**：负责编写和运行测试
+- **审查 Agent**：负责代码审查
+
+### 为什么需要多 Agent
+
+| 场景 | 单 Agent | 多 Agent |
+|---|---|---|
+| 修改单个文件 | 足够 | 过度设计 |
+| 跨多模块重构 | 上下文可能溢出 | 各 Agent 分别处理 |
+| 全栈功能开发 | 需要频繁切换上下文 | 前后端 Agent 并行 |
+| 大规模代码审查 | 耗时较长 | 多 Agent 并行审查 |
+| 自动化流水线 | 适合简单任务 | 适合多步复杂流程 |
+
+## 主 Agent 与子 Agent 架构
+
+Claude Code 内部实际上已经使用了 Agent 分层架构。理解这一架构有助于更好地设计外部多 Agent 系统。
+
+### 内置的 Agent 层级
+
+```
+┌─────────────────────────────┐
+│      主 Agent (Main)        │
+│  - 理解用户意图              │
+│  - 规划任务步骤              │
+│  - 协调子 Agent             │
+│  - 汇总最终结果              │
+├─────────────────────────────┤
+│      子 Agent (Sub)         │
+│  - 执行具体任务              │
+│  - 文件搜索和分析            │
+│  - 代码生成和修改            │
+│  - 运行命令                 │
+└─────────────────────────────┘
+```
+
+Claude Code 在处理复杂请求时，主 Agent 会自动创建子 Agent 来处理具体的子任务。例如，当你要求进行大范围代码搜索时，主 Agent 可能会派遣子 Agent 去搜索文件，而自己继续进行上层规划。
+
+### 外部多 Agent 架构
+
+除了内置机制，你还可以从外部编排多个 Claude Code 实例来实现多 Agent 协作：
+
+```
+┌──────────────────────────┐
+│    编排脚本 (Orchestrator) │
+│    Shell / Node.js / Python │
+├──────┬──────┬──────┬─────┤
+│      │      │      │      │
+▼      ▼      ▼      ▼      ▼
+Agent1 Agent2 Agent3 Agent4 Agent5
+前端    后端    数据库  测试    文档
+```
+
+## 并行任务执行
+
+通过 Claude Code 的非交互模式（headless mode），你可以并行启动多个 Agent。
+
+### 基本并行执行
+
+```bash
+# 同时启动三个 Agent，分别处理不同任务
+claude -p "为 src/components/Button.tsx 添加单元测试" --output-format text &
+claude -p "为 src/components/Modal.tsx 添加单元测试" --output-format text &
+claude -p "为 src/components/Form.tsx 添加单元测试" --output-format text &
+
+# 等待所有 Agent 完成
+wait
+echo "所有测试生成任务已完成"
+```
+
+### 结构化输出的并行执行
+
+使用 JSON 输出格式，方便后续程序处理结果：
+
+```bash
+#!/bin/bash
+
+# 定义要处理的文件列表
+files=("Button.tsx" "Modal.tsx" "Form.tsx" "Table.tsx" "Input.tsx")
+
+# 创建结果目录
+mkdir -p results
+
+# 并行执行
+for file in "${files[@]}"; do
+  claude -p "分析 src/components/$file 的代码质量，给出评分和改进建议" \
+    --output-format json > "results/${file%.tsx}.json" &
+done
+
+# 等待所有任务完成
+wait
+
+echo "所有分析任务已完成，结果保存在 results/ 目录"
+```
+
+### 控制并发度
+
+为了避免资源过载，建议控制同时运行的 Agent 数量：
+
+```bash
+#!/bin/bash
+
+MAX_PARALLEL=3
+current_jobs=0
+
+files=$(find src -name "*.ts" -type f)
+
+for file in $files; do
+  # 等待，直到并发数低于上限
+  while [ $current_jobs -ge $MAX_PARALLEL ]; do
+    wait -n  # 等待任意一个后台任务完成
+    current_jobs=$((current_jobs - 1))
+  done
+
+  # 启动新的 Agent
+  claude -p "审查 $file 中的代码，列出潜在问题" \
+    --output-format text > "review_$(basename $file).txt" &
+  current_jobs=$((current_jobs + 1))
+done
+
+# 等待剩余任务完成
+wait
+echo "全部审查完成"
+```
+
+## Agent 通信模式
+
+多个 Agent 之间需要通过某种方式共享信息和协调工作。
+
+### 文件共享模式
+
+最简单的通信方式是通过文件系统：
+
+```bash
+#!/bin/bash
+
+# Agent 1: 分析项目结构，生成计划
+claude -p "分析当前项目结构，列出所有需要添加测试的模块，输出为 JSON 格式" \
+  --output-format text > /tmp/test-plan.json
+
+# Agent 2: 读取计划，执行任务
+claude -p "读取 /tmp/test-plan.json 中的测试计划，为第一批模块生成单元测试" \
+  --output-format text
+
+# Agent 3: 同时执行另一批
+claude -p "读取 /tmp/test-plan.json 中的测试计划，为第二批模块生成单元测试" \
+  --output-format text
+```
+
+### 管道模式
+
+将一个 Agent 的输出作为另一个 Agent 的输入：
+
+```bash
+# Agent 1 的输出通过管道传给 Agent 2
+claude -p "分析 src/api/ 目录下所有的 API 端点，以 JSON 列表形式输出" \
+  --output-format text | \
+claude -p "基于以下 API 列表，生成完整的 API 文档。API 列表: $(cat -)" \
+  --output-format text > api-docs.md
+```
+
+### 共享上下文文件模式
+
+通过一个共享的上下文文件来协调多个 Agent：
+
+```bash
+#!/bin/bash
+
+# 创建共享上下文文件
+cat > /tmp/shared-context.md << 'CONTEXT'
+# 项目重构计划
+
+## 目标
+将项目从 JavaScript 迁移到 TypeScript
+
+## 规范
+- 使用 strict 模式
+- 所有函数必须有类型注解
+- 使用 interface 而非 type alias（除非需要联合类型）
+
+## 进度跟踪
+（各 Agent 将在此更新进度）
+CONTEXT
+
+# 多个 Agent 共享同一个上下文
+claude -p "参考 /tmp/shared-context.md 中的规范，将 src/utils/ 目录下的文件迁移到 TypeScript" &
+claude -p "参考 /tmp/shared-context.md 中的规范，将 src/models/ 目录下的文件迁移到 TypeScript" &
+claude -p "参考 /tmp/shared-context.md 中的规范，将 src/routes/ 目录下的文件迁移到 TypeScript" &
+
+wait
+echo "TypeScript 迁移完成"
+```
+
+## 编排复杂工作流
+
+### 顺序-并行混合工作流
+
+```bash
+#!/bin/bash
+
+echo "=== 阶段 1: 分析（顺序执行）==="
+analysis=$(claude -p "分析当前项目的架构和依赖关系，输出需要修改的模块列表" \
+  --output-format text)
+
+echo "=== 阶段 2: 实施（并行执行）==="
+echo "$analysis" | claude -p "根据分析结果，修改前端组件。分析: $(cat -)" \
+  --output-format text > /tmp/frontend-result.txt &
+echo "$analysis" | claude -p "根据分析结果，修改后端接口。分析: $(cat -)" \
+  --output-format text > /tmp/backend-result.txt &
+wait
+
+echo "=== 阶段 3: 测试（顺序执行）==="
+claude -p "运行所有测试并修复发现的问题" --output-format text
+
+echo "=== 阶段 4: 审查（并行执行）==="
+claude -p "审查 /tmp/frontend-result.txt 中前端变更的质量" --output-format text &
+claude -p "审查 /tmp/backend-result.txt 中后端变更的质量" --output-format text &
+wait
+
+echo "工作流完成"
+```
+
+### 条件分支工作流
+
+```bash
+#!/bin/bash
+
+# 先进行分析
+result=$(claude -p "检查当前项目是否有 TypeScript 配置，回答 yes 或 no" \
+  --output-format text)
+
+if echo "$result" | grep -qi "yes"; then
+  echo "项目使用 TypeScript，执行 TS 相关任务..."
+  claude -p "运行 TypeScript 类型检查并修复所有类型错误" --output-format text
+else
+  echo "项目使用 JavaScript，执行 JS 相关任务..."
+  claude -p "运行 ESLint 检查并修复所有 linting 错误" --output-format text
+fi
+```
+
+## 使用 Headless 模式进行自动化
+
+Headless 模式是多 Agent 协作的基础。让我们深入了解它的各种用法。
+
+### 基本 headless 用法
+
+```bash
+# 最简单的 headless 调用
+claude -p "你好，请自我介绍"
+
+# 指定输出格式
+claude -p "列出当前目录下的文件" --output-format text
+claude -p "分析 package.json" --output-format json
+claude -p "实时分析代码" --output-format stream-json
+```
+
+### 输出格式详解
+
+**text 格式**：纯文本输出，适合人类阅读和简单脚本：
+
+```bash
+claude -p "解释这个函数的作用" --output-format text
+```
+
+**json 格式**：结构化 JSON 输出，适合程序处理：
+
+```bash
+result=$(claude -p "分析代码质量" --output-format json)
+echo "$result" | jq '.result'
+```
+
+**stream-json 格式**：流式 JSON 输出，适合实时处理：
+
+```bash
+claude -p "生成大量代码" --output-format stream-json | while read -r line; do
+  echo "$line" | jq -r '.type'
+done
+```
+
+### 会话管理
+
+在多 Agent 场景中，你可能需要管理不同的会话：
+
+```bash
+# 继续之前的会话
+claude -p "继续上次的工作" --resume
+
+# 使用特定的会话
+claude -p "在这个会话的上下文中继续" --session-id "abc123"
+```
+
+## 构建 Agent 流水线
+
+### 代码审查流水线
+
+```bash
+#!/bin/bash
+
+echo "开始自动化代码审查流水线..."
+
+# 第一步：收集变更信息
+echo "--- 收集变更 ---"
+changes=$(git diff --name-only HEAD~1)
+
+# 第二步：并行审查各类文件
+echo "--- 并行审查 ---"
+
+# 筛选不同类型的文件
+ts_files=$(echo "$changes" | grep '\.tsx\?$' || true)
+css_files=$(echo "$changes" | grep '\.css$\|\.scss$' || true)
+test_files=$(echo "$changes" | grep '\.test\.\|\.spec\.' || true)
+
+if [ -n "$ts_files" ]; then
+  claude -p "审查以下 TypeScript 文件的变更，关注类型安全和逻辑正确性：$ts_files" \
+    --output-format text > /tmp/review-ts.txt &
+fi
+
+if [ -n "$css_files" ]; then
+  claude -p "审查以下样式文件的变更，关注响应式设计和兼容性：$css_files" \
+    --output-format text > /tmp/review-css.txt &
+fi
+
+if [ -n "$test_files" ]; then
+  claude -p "审查以下测试文件的变更，关注测试覆盖率和断言质量：$test_files" \
+    --output-format text > /tmp/review-tests.txt &
+fi
+
+wait
+
+# 第三步：汇总审查结果
+echo "--- 汇总结果 ---"
+claude -p "请汇总以下审查结果，生成统一的审查报告：
+TypeScript 审查：$(cat /tmp/review-ts.txt 2>/dev/null || echo '无')
+样式审查：$(cat /tmp/review-css.txt 2>/dev/null || echo '无')
+测试审查：$(cat /tmp/review-tests.txt 2>/dev/null || echo '无')" \
+  --output-format text > review-report.md
+
+echo "审查报告已生成：review-report.md"
+```
+
+## 多 Agent 任务分解的最佳实践
+
+### 设计原则
+
+**1. 任务独立性**
+
+确保每个子任务可以独立执行，不依赖其他 Agent 的实时状态：
+
+```
+好的分解：
+- Agent 1: 处理 src/components/ 目录
+- Agent 2: 处理 src/utils/ 目录
+- Agent 3: 处理 src/api/ 目录
+
+不好的分解：
+- Agent 1: 创建接口定义
+- Agent 2: 实现接口（依赖 Agent 1 的输出）  ← 需要改为顺序执行
+```
+
+**2. 粒度控制**
+
+任务粒度不宜太细也不宜太粗：
+
+```
+太粗: "重构整个项目"                     → 一个 Agent 无法高效处理
+太细: "给变量 x 改个名字"               → 不需要 Agent
+合适: "将 auth 模块从 JavaScript 迁移到 TypeScript"  → 范围清晰、可独立完成
+```
+
+**3. 结果可合并**
+
+并行 Agent 的输出应当容易合并，避免冲突：
+
+```bash
+# 好：各 Agent 修改不同文件
+claude -p "修改 src/a.ts" &
+claude -p "修改 src/b.ts" &
+
+# 不好：多个 Agent 修改同一文件
+claude -p "修改 src/index.ts 的前半部分" &
+claude -p "修改 src/index.ts 的后半部分" &  # 可能产生冲突
+```
+
+### 错误处理策略
+
+```bash
+#!/bin/bash
+
+run_agent() {
+  local task="$1"
+  local output_file="$2"
+  local max_retries=3
+  local attempt=1
+
+  while [ $attempt -le $max_retries ]; do
+    if claude -p "$task" --output-format text > "$output_file" 2>&1; then
+      echo "任务成功: $output_file"
+      return 0
+    fi
+    echo "任务失败 (尝试 $attempt/$max_retries): $output_file"
+    attempt=$((attempt + 1))
+    sleep 2
+  done
+
+  echo "任务最终失败: $output_file"
+  return 1
+}
+
+# 使用带重试的 Agent 执行
+run_agent "审查 src/api/ 目录的代码" "/tmp/review-api.txt" &
+run_agent "审查 src/models/ 目录的代码" "/tmp/review-models.txt" &
+wait
+```
+
+## 局限性与注意事项
+
+### 何时不应使用多 Agent
+
+- **简单任务**：修改单个文件、回答问题等，单 Agent 足够
+- **强依赖链**：任务之间有严格的先后顺序，并行没有收益
+- **共享状态**：多个 Agent 需要频繁读写同一资源
+- **资源受限**：API 调用额度有限时，并行会加速消耗
+
+### 已知限制
+
+- **文件冲突**：多个 Agent 同时修改同一文件可能产生冲突
+- **上下文隔离**：每个 Agent 都是独立的会话，不共享历史上下文
+- **成本倍增**：每个 Agent 都会消耗独立的 API 调用额度
+- **协调开销**：编排逻辑本身增加了系统复杂度
+
+### 成本控制建议
+
+```bash
+# 使用 --max-turns 限制每个 Agent 的交互轮次
+claude -p "快速审查此文件" --max-turns 3 --output-format text
+
+# 精确指定任务范围，避免 Agent 做过多无关工作
+claude -p "仅检查 src/auth.ts 中的 login 函数是否有安全漏洞，不要修改代码" \
+  --output-format text
+```
+
+## 小结
+
+本节介绍了 Claude Code 的多 Agent 协作能力。核心知识点回顾：
+
+- **多 Agent 模式**：通过编排多个 Claude Code 实例并行处理子任务
+- **内外架构**：内置主/子 Agent 层级 + 外部脚本编排
+- **并行执行**：使用 headless 模式和 shell 后台任务实现并行
+- **通信模式**：文件共享、管道传递、共享上下文文件
+- **工作流编排**：顺序-并行混合、条件分支、Agent 流水线
+- **最佳实践**：任务独立性、粒度控制、结果可合并、错误处理
+- **注意事项**：避免文件冲突、控制成本、合理评估是否需要多 Agent
+
+下一节我们将学习如何将 Claude Code 集成到 GitHub Actions CI/CD 流水线中。

@@ -1,0 +1,97 @@
+---
+import { getCollection } from 'astro:content';
+import { sections, referenceCatalogPages, type SectionMeta } from '@lib/navigation';
+
+interface Props {
+  currentSection: string;
+  currentLessonId?: string;
+}
+
+const { currentSection, currentLessonId } = Astro.props;
+
+const sectionMeta = sections.find((s) => s.collectionName === currentSection);
+const lessons = (await getCollection(currentSection as any, ({ data }: any) => !data.draft))
+  .sort((a: any, b: any) => a.data.order - b.data.order);
+---
+
+<aside id="sidebar" class="sidebar-scroll hidden lg:block w-64 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900/80">
+  <div class="sticky top-16 p-5">
+    <!-- Current section -->
+    {sectionMeta && (
+      <div class="mb-5">
+        <a
+          href={sectionMeta.urlPrefix}
+          class="group flex items-center gap-2.5 text-sm font-semibold text-gray-900 dark:text-white"
+        >
+          <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50 text-sm dark:bg-primary-950/50">{sectionMeta.icon}</span>
+          <span class="group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">{sectionMeta.title}</span>
+        </a>
+      </div>
+    )}
+
+    <!-- Lesson list -->
+    <nav class="flex flex-col gap-0.5">
+      {lessons.map((lesson: any, i: number) => {
+        const isActive = lesson.id === currentLessonId;
+        const href = `${sectionMeta?.urlPrefix}/${lesson.id}`;
+        return (
+          <a
+            href={href}
+            class:list={[
+              'group flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all',
+              isActive
+                ? 'bg-primary-100 text-primary-800 font-medium dark:bg-primary-900/30 dark:text-primary-300'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800',
+            ]}
+          >
+            <span class:list={[
+              'lesson-number flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold',
+              isActive
+                ? 'bg-primary-600 text-white dark:bg-primary-500'
+                : 'bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500 group-hover:bg-gray-300 dark:group-hover:bg-gray-600',
+            ]}>
+              {i + 1}
+            </span>
+            <span class="truncate">{lesson.data.title}</span>
+          </a>
+        );
+      })}
+    </nav>
+
+    <!-- Other sections -->
+    <div class="mt-6 pt-5 border-t border-gray-200 dark:border-gray-700">
+      <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+        其他板块
+      </p>
+      <nav class="flex flex-col gap-0.5">
+        {sections
+          .filter((s) => s.collectionName !== currentSection)
+          .map((section) => (
+            <a
+              href={section.urlPrefix}
+              class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-white dark:hover:bg-gray-800 transition-colors"
+            >
+              <span class="text-xs">{section.icon}</span>
+              <span>{section.titleShort}</span>
+            </a>
+          ))}
+      </nav>
+
+      <!-- Reference catalogs -->
+      <p class="px-3 mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+        速查目录
+      </p>
+      <nav class="flex flex-col gap-0.5">
+        {referenceCatalogPages.map((page) => (
+          <a
+            href={page.href}
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-white dark:hover:bg-gray-800 transition-colors"
+          >
+            <span class="text-xs">{page.icon}</span>
+            <span>{page.title}</span>
+          </a>
+        ))}
+      </nav>
+    </div>
+  </div>
+</aside>

@@ -1,0 +1,444 @@
+---
+title: "从零构建 Web 应用"
+description: "使用 Claude Code 从零开始搭建一个完整的全栈 Web 应用，涵盖项目初始化、数据库、认证、CRUD 等核心环节"
+order: 1
+section: practical
+difficulty: intermediate
+readingTime: 25
+pubDate: 2026-02-09
+tags: ["实战", "Web应用", "Next.js", "全栈"]
+---
+
+## 概述
+
+本篇将带你使用 Claude Code 从零构建一个完整的全栈 Web 应用 —— 一个任务管理系统（Todo App）。我们选择 Next.js + Prisma + SQLite 技术栈，这是一个非常适合用 Claude Code 快速搭建的组合。
+
+通过这个实战项目，你将学到：
+
+- 如何用自然语言指导 Claude Code 搭建项目脚手架
+- 如何让 Claude Code 帮你配置数据库和 ORM
+- 如何逐步构建功能模块（认证、CRUD、UI）
+- 在开发过程中如何与 Claude Code 高效协作
+
+<CalloutBox type="info">
+本教程假设你已经安装并配置好了 Claude Code，并且对 React 和 Node.js 有基本了解。如果还没有安装，请先阅读「安装 Claude Code」章节。
+</CalloutBox>
+
+## 第一步：项目初始化
+
+### 创建项目目录
+
+首先，创建项目目录并进入：
+
+```bash
+mkdir todo-app && cd todo-app
+```
+
+然后启动 Claude Code：
+
+```bash
+claude
+```
+
+### 让 Claude 搭建脚手架
+
+在 Claude Code 中输入以下提示词：
+
+```
+帮我初始化一个 Next.js 项目，要求：
+- 使用 TypeScript
+- 使用 App Router
+- 使用 Tailwind CSS
+- 项目名称为 todo-app
+- 不需要 ESLint（后面手动配置）
+```
+
+Claude Code 会执行 `npx create-next-app@latest` 并根据你的要求选择相应的配置选项。你会看到它在终端中运行命令并自动回答交互式提示。
+
+<CalloutBox type="tip">
+当 Claude Code 需要执行终端命令时，它会先向你展示将要运行的命令。确认无误后输入 `y` 允许执行。如果你信任当前操作，也可以使用「全部允许」来减少交互。
+</CalloutBox>
+
+### 验证项目结构
+
+项目创建完成后，让 Claude 确认一切就绪：
+
+```
+检查项目结构是否正确，确认 TypeScript 和 Tailwind CSS 已正确配置，然后运行 dev server 测试一下
+```
+
+Claude Code 会检查 `tsconfig.json`、`tailwind.config.ts` 等配置文件，然后启动开发服务器验证项目可以正常运行。
+
+## 第二步：数据库设置
+
+### 安装和配置 Prisma
+
+接下来，让 Claude Code 帮你设置数据库层：
+
+```
+安装 Prisma 并配置 SQLite 数据库。创建以下数据模型：
+1. User 模型：id、email（唯一）、name、password（哈希后存储）、createdAt
+2. Todo 模型：id、title、description（可选）、completed（布尔值，默认false）、createdAt、updatedAt、userId（关联 User）
+```
+
+Claude Code 通常会执行以下操作：
+
+1. 安装依赖：`npm install prisma @prisma/client`
+2. 初始化 Prisma：`npx prisma init --datasource-provider sqlite`
+3. 编写 `prisma/schema.prisma` 文件
+4. 运行迁移：`npx prisma migrate dev --name init`
+
+生成的 schema 大致如下：
+
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  createdAt DateTime @default(now())
+  todos     Todo[]
+}
+
+model Todo {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+}
+```
+
+### 创建数据库工具文件
+
+```
+创建一个 lib/prisma.ts 工具文件，使用单例模式确保在开发环境中不会创建过多的 Prisma Client 实例
+```
+
+Claude Code 会创建标准的 Prisma 单例文件：
+
+```typescript
+import { PrismaClient } from "@prisma/client";
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}
+```
+
+## 第三步：用户认证
+
+### 实现注册和登录
+
+认证是 Web 应用的核心功能。让 Claude Code 帮你实现：
+
+```
+实现用户认证系统，要求：
+1. 使用 bcryptjs 对密码进行哈希处理
+2. 使用 jose 库实现 JWT token
+3. 创建 Server Actions：注册（signup）和登录（login）
+4. 创建一个认证中间件，验证请求中的 JWT token
+5. 将 token 存储在 httpOnly cookie 中
+6. 创建注册页面 /signup 和登录页面 /login
+```
+
+Claude Code 会帮你实现完整的认证流程。你可以观察它依次处理每个步骤。在这个过程中有几个关键点值得注意：
+
+**密码哈希处理**（`lib/auth.ts`）：
+
+```typescript
+import bcrypt from "bcryptjs";
+import { SignJWT, jwtVerify } from "jose";
+
+const secret = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key");
+
+export async function hashPassword(password: string) {
+  return bcrypt.hash(password, 12);
+}
+
+export async function verifyPassword(password: string, hashedPassword: string) {
+  return bcrypt.compare(password, hashedPassword);
+}
+
+export async function createToken(userId: string) {
+  return new SignJWT({ userId })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("7d")
+    .sign(secret);
+}
+
+export async function verifyToken(token: string) {
+  const { payload } = await jwtVerify(token, secret);
+  return payload as { userId: string };
+}
+```
+
+<CalloutBox type="warning">
+Claude Code 生成的代码中可能会包含硬编码的 secret key。在实际项目中，务必将密钥配置在环境变量中，不要提交到代码仓库。你可以提醒 Claude：「请确保所有敏感信息都从环境变量读取」。
+</CalloutBox>
+
+### 认证页面
+
+```
+创建注册和登录页面，使用 Tailwind CSS 做样式，要求：
+- 简洁的表单设计，居中显示
+- 包含表单验证（邮箱格式、密码长度）
+- 注册成功后自动跳转到登录页
+- 登录成功后跳转到主页
+- 显示错误信息（如邮箱已存在、密码错误等）
+```
+
+Claude Code 会生成完整的表单组件和对应的 Server Actions。这里的一个技巧是：如果你对生成的 UI 不满意，可以继续要求修改：
+
+```
+登录页面的样式太朴素了，加一些视觉元素：
+- 添加一个应用 logo 或标题
+- 使用卡片式布局加阴影
+- 在表单下方添加"还没有账号？去注册"的链接
+```
+
+## 第四步：核心 CRUD 功能
+
+### Todo 列表页面
+
+现在来构建应用的核心功能：
+
+```
+创建 Todo 的 CRUD 功能，包括：
+
+1. 主页（/dashboard）展示当前用户的所有 Todo，按创建时间倒序
+2. 新建 Todo 的表单（可以是模态框或内联表单）
+3. 编辑 Todo（点击可编辑标题和描述）
+4. 删除 Todo（带确认提示）
+5. 切换完成状态（点击复选框）
+6. 使用 Server Actions 处理所有数据操作
+7. 添加加载状态和乐观更新
+```
+
+这是一个比较复杂的需求，Claude Code 会花一些时间来实现。让我们看看它生成的关键代码。
+
+**Server Actions**（`app/actions/todo.ts`）：
+
+```typescript
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
+import { revalidatePath } from "next/cache";
+
+export async function createTodo(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("未登录");
+
+  const title = formData.get("title") as string;
+  const description = formData.get("description") as string;
+
+  await prisma.todo.create({
+    data: {
+      title,
+      description: description || null,
+      userId: user.id,
+    },
+  });
+
+  revalidatePath("/dashboard");
+}
+
+export async function toggleTodo(todoId: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("未登录");
+
+  const todo = await prisma.todo.findUnique({ where: { id: todoId } });
+  if (!todo || todo.userId !== user.id) throw new Error("无权操作");
+
+  await prisma.todo.update({
+    where: { id: todoId },
+    data: { completed: !todo.completed },
+  });
+
+  revalidatePath("/dashboard");
+}
+
+export async function deleteTodo(todoId: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("未登录");
+
+  await prisma.todo.deleteMany({
+    where: { id: todoId, userId: user.id },
+  });
+
+  revalidatePath("/dashboard");
+}
+```
+
+### 优化 UI 体验
+
+基础功能实现后，让 Claude 优化用户体验：
+
+```
+为 Dashboard 页面添加以下优化：
+1. Todo 列表为空时显示引导提示
+2. 添加筛选功能：全部 / 待完成 / 已完成
+3. 显示完成进度（例如"已完成 3/10"）
+4. 添加键盘快捷键：Enter 快速创建，Escape 取消编辑
+5. 添加简单的动画过渡效果
+```
+
+## 第五步：迭代改进
+
+### 利用 Claude Code 持续优化
+
+项目的核心功能完成后，你可以让 Claude Code 帮你做进一步的改进。以下是一些常见的迭代方向：
+
+**添加搜索功能：**
+
+```
+在 Dashboard 顶部添加搜索框，支持按标题和描述搜索 Todo，使用防抖处理
+```
+
+**添加分类标签：**
+
+```
+为 Todo 添加标签（Tag）功能：
+1. 在 Prisma schema 中添加 Tag 模型和多对多关系
+2. 创建/编辑 Todo 时可以选择或新建标签
+3. 支持按标签筛选 Todo
+4. 标签用不同颜色显示
+```
+
+**响应式设计：**
+
+```
+确保整个应用在移动端也有良好的体验，检查所有页面的响应式布局，特别是：
+- 导航栏在移动端改为汉堡菜单
+- Todo 列表在小屏幕上改为单列
+- 表单在移动端适当调整间距
+```
+
+### 添加测试
+
+让 Claude Code 帮你写测试是它非常擅长的领域：
+
+```
+为这个项目添加测试：
+1. 安装 Jest 和 React Testing Library
+2. 为认证相关的工具函数编写单元测试
+3. 为 Todo 的 Server Actions 编写集成测试
+4. 为登录表单组件编写一个基本的渲染测试
+```
+
+<CalloutBox type="tip">
+让 Claude Code 写测试时，最好先让它阅读要测试的代码，再编写测试。你可以这样提示：「先阅读 lib/auth.ts 和 app/actions/todo.ts 的代码，然后为它们编写全面的测试」。
+</CalloutBox>
+
+## 开发过程中的协作技巧
+
+### 提示词的渐进式细化
+
+在使用 Claude Code 构建项目时，不要试图一次性描述所有需求。更好的方式是分步骤进行：
+
+1. **先搭骨架**：让 Claude 创建基本的项目结构和路由
+2. **再填内容**：逐个功能模块实现
+3. **后优化**：UI 美化、性能优化、错误处理
+
+```
+// 不推荐 - 一次性给出过多需求
+帮我创建一个完整的 Todo 应用，包含用户认证、CRUD、标签、搜索、
+响应式设计、暗色模式、导出功能、通知系统...
+
+// 推荐 - 分步骤逐步构建
+第一步：帮我初始化 Next.js 项目并配置好 Tailwind CSS
+第二步：设置 Prisma 和数据库模型
+第三步：实现用户注册和登录
+...
+```
+
+### 出现问题时如何引导
+
+当 Claude Code 生成的代码有问题时，你可以这样引导：
+
+```
+运行 npm run dev 后出现这个错误：
+[粘贴错误信息]
+
+请分析原因并修复
+```
+
+或者当你对实现方式不满意时：
+
+```
+你用的是客户端组件来获取数据，但我希望用 Server Component 直接在服务端获取，
+这样首屏加载更快。请重构 Dashboard 页面
+```
+
+### 利用 CLAUDE.md 记录项目规范
+
+在项目根目录创建 `CLAUDE.md`，记录项目的技术规范：
+
+```markdown
+# 项目规范
+
+## 技术栈
+- Next.js 15 (App Router)
+- TypeScript (strict mode)
+- Prisma + SQLite
+- Tailwind CSS
+
+## 代码规范
+- 使用 Server Components 优先，只在需要交互时使用 Client Components
+- Server Actions 放在 app/actions/ 目录下
+- 工具函数放在 lib/ 目录下
+- 所有数据库操作必须检查用户权限
+
+## 命名规范
+- 组件使用 PascalCase
+- 文件名使用 kebab-case
+- Server Actions 使用 camelCase
+```
+
+这样 Claude Code 在后续开发中会自动遵循这些规范。
+
+## 最终成果
+
+经过以上步骤，你已经使用 Claude Code 构建了一个功能完整的任务管理应用，包含：
+
+- 用户注册和登录系统
+- JWT 认证和 Cookie 管理
+- Todo 的完整 CRUD 操作
+- 筛选和搜索功能
+- 响应式设计
+- 基本的测试覆盖
+
+整个开发过程可能只需要 1-2 小时，而传统方式可能需要一整天甚至更多。
+
+## 经验总结
+
+通过这个实战项目，我们总结几条关键经验：
+
+1. **分步骤开发**：将大需求拆解为小步骤，每步完成后验证，再进入下一步
+2. **明确技术选型**：在提示词中明确指定要使用的技术和库，避免 Claude Code 做出你不想要的选择
+3. **及时验证**：每个功能实现后立即运行测试和手动验证，发现问题及时修正
+4. **善用 CLAUDE.md**：用项目规范文件引导 Claude Code 的行为，保持代码风格一致
+5. **迭代优化**：先让功能跑起来，再逐步优化细节，不要追求一步到位
+6. **阅读生成的代码**：即使 Claude Code 生成的代码看起来正确，也要仔细审查，特别是安全相关的部分
+
+<CalloutBox type="info">
+这个实战项目的完整代码可以作为你用 Claude Code 构建其他 Web 应用的参考模板。掌握了这套流程后，你可以快速构建博客系统、电商平台、管理后台等各类 Web 应用。
+</CalloutBox>

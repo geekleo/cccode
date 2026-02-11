@@ -1,0 +1,677 @@
+---
+title: "CI/CD 集成: GitHub Actions"
+description: "将 Claude Code 集成到 GitHub Actions 工作流中，实现自动化代码审查、PR 描述生成等 CI/CD 功能"
+order: 5
+section: advanced
+difficulty: advanced
+readingTime: 15
+pubDate: 2026-02-09
+tags: ["CI/CD", "GitHub Actions", "自动化", "代码审查"]
+---
+
+## 为什么在 CI/CD 中集成 Claude Code
+
+将 Claude Code 集成到 CI/CD 流水线中，可以自动化许多原本需要人工完成的开发流程。这不是替代传统的 lint、测试等检查，而是在它们之上增加一层智能化的审查和辅助。
+
+### 核心应用场景
+
+| 场景 | 说明 | 价值 |
+|---|---|---|
+| 自动化代码审查 | 每次 PR 自动审查代码质量 | 减少人工审查负担，提早发现问题 |
+| PR 描述生成 | 自动生成结构化的 PR 描述 | 保持文档质量一致性 |
+| Bug 修复建议 | 针对 Issue 自动分析并建议修复方案 | 加速问题解决 |
+| 代码迁移辅助 | 大规模代码迁移中的自动化转换 | 降低迁移成本和风险 |
+| 文档更新 | 代码变更后自动更新相关文档 | 保持文档与代码同步 |
+
+## 设置 GitHub Actions 环境
+
+### 前提条件
+
+在开始之前，你需要准备：
+
+1. **Anthropic API Key**：从 Anthropic Console 获取
+2. **GitHub 仓库**：拥有仓库的管理权限
+3. **GitHub Actions**：仓库已启用 Actions 功能
+
+### 配置 API Key Secret
+
+首先，将 Anthropic API Key 添加到仓库的 Secrets 中：
+
+1. 进入仓库的 **Settings** 页面
+2. 点击左侧 **Secrets and variables** > **Actions**
+3. 点击 **New repository secret**
+4. 名称输入 `ANTHROPIC_API_KEY`
+5. 值输入你的 API Key
+6. 点击 **Add secret**
+
+```
+仓库 Settings → Secrets and variables → Actions → New repository secret
+名称: ANTHROPIC_API_KEY
+值:   sk-ant-api03-xxxxxxxxxxxx
+```
+
+### 安装 Claude Code 的 Action 步骤
+
+在 GitHub Actions 工作流中，你需要安装 Node.js 和 Claude Code：
+
+```yaml
+- name: 设置 Node.js
+  uses: actions/setup-node@v4
+  with:
+    node-version: "20"
+
+- name: 安装 Claude Code
+  run: npm install -g @anthropic-ai/claude-code
+```
+
+## GitHub Actions 工作流配置
+
+### 基本工作流结构
+
+创建 `.github/workflows/claude-review.yml`：
+
+```yaml
+name: Claude Code 代码审查
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 安装 Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: 获取 PR 变更文件
+        id: changed-files
+        run: |
+          echo "files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | tr '\n' ' ')" >> $GITHUB_OUTPUT
+
+      - name: Claude Code 审查
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "请审查以下 PR 变更的代码质量。
+
+          变更文件: ${{ steps.changed-files.outputs.files }}
+
+          请使用 git diff origin/${{ github.base_ref }}...HEAD 查看具体变更。
+
+          审查重点：
+          1. 逻辑正确性
+          2. 安全风险
+          3. 性能问题
+          4. 代码可读性
+
+          请输出结构化的审查报告。" \
+            --output-format text > review.md
+
+      - name: 发表审查评论
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const review = fs.readFileSync('review.md', 'utf8');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## Claude Code 自动审查报告\n\n${review}`
+            });
+```
+
+### 工作流触发条件解释
+
+```yaml
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+```
+
+- **opened**：新建 PR 时触发
+- **synchronize**：PR 有新的提交推送时触发
+- **reopened**：关闭后重新打开 PR 时触发
+
+### 权限配置
+
+```yaml
+permissions:
+  contents: read          # 读取仓库代码
+  pull-requests: write    # 在 PR 中发表评论
+```
+
+GitHub Actions 遵循最小权限原则，只授予必要的权限。
+
+## 自动化代码审查
+
+### 基础审查工作流
+
+上面展示了基本的审查工作流。让我们进一步完善它，增加更多审查维度。
+
+### 分类审查工作流
+
+```yaml
+name: Claude Code 分类审查
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 安装 Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: 安全审查
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "对当前 PR 的变更进行安全审查。
+          使用 git diff origin/${{ github.base_ref }}...HEAD 查看变更。
+
+          重点检查：
+          - SQL 注入风险
+          - XSS 漏洞
+          - 敏感信息泄露（硬编码的密钥、Token 等）
+          - 不安全的反序列化
+          - 权限控制缺陷
+
+          仅报告安全相关的问题，不需要关注代码风格。
+          如果没有安全问题，请明确说明。" \
+            --output-format text > security-review.md
+
+      - name: 性能审查
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "对当前 PR 的变更进行性能审查。
+          使用 git diff origin/${{ github.base_ref }}...HEAD 查看变更。
+
+          重点检查：
+          - N+1 查询问题
+          - 不必要的重新渲染（React 组件）
+          - 内存泄漏风险
+          - 大循环中的低效操作
+          - 缺少缓存的重复计算
+
+          仅报告性能相关的问题。
+          如果没有性能问题，请明确说明。" \
+            --output-format text > performance-review.md
+
+      - name: 发表审查结果
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const security = fs.readFileSync('security-review.md', 'utf8');
+            const performance = fs.readFileSync('performance-review.md', 'utf8');
+
+            const body = [
+              '## Claude Code 自动审查报告',
+              '',
+              '### 安全审查',
+              security,
+              '',
+              '### 性能审查',
+              performance,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+```
+
+## PR 描述自动生成
+
+让 Claude Code 自动为 PR 生成结构化的描述。
+
+```yaml
+name: 自动生成 PR 描述
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  generate-description:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 安装 Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: 生成 PR 描述
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "分析当前 PR 的所有变更，生成结构化的 PR 描述。
+
+          使用 git log origin/${{ github.base_ref }}...HEAD --oneline 查看提交历史。
+          使用 git diff origin/${{ github.base_ref }}...HEAD --stat 查看变更概览。
+          使用 git diff origin/${{ github.base_ref }}...HEAD 查看具体变更。
+
+          请按以下格式输出：
+
+          ## 变更概述
+          （用 1-2 句话概括这个 PR 做了什么）
+
+          ## 主要变更
+          （列出主要的变更点）
+
+          ## 变更详情
+          （按文件或模块分类描述具体变更）
+
+          ## 测试说明
+          （描述如何测试这些变更）
+
+          ## 注意事项
+          （审查者需要特别关注的点）" \
+            --output-format text > pr-description.md
+
+      - name: 更新 PR 描述
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const description = fs.readFileSync('pr-description.md', 'utf8');
+
+            // 获取当前 PR 的原始描述
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            // 在原始描述后追加自动生成的内容
+            const newBody = [
+              pr.body || '',
+              '',
+              '---',
+              '*以下内容由 Claude Code 自动生成*',
+              '',
+              description
+            ].join('\n');
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              body: newBody
+            });
+```
+
+## 自动化 Bug 修复工作流
+
+当 Issue 被打上特定标签时，自动尝试修复 Bug。
+
+```yaml
+name: Claude Code 自动修复
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+jobs:
+  auto-fix:
+    if: github.event.label.name == 'claude-fix'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 安装 Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: 创建修复分支
+        run: |
+          git checkout -b fix/issue-${{ github.event.issue.number }}
+
+      - name: 尝试修复
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "请修复以下 Issue：
+
+          标题: ${{ github.event.issue.title }}
+          描述: ${{ github.event.issue.body }}
+
+          请分析问题原因，找到相关代码，进行修复。
+          修复完成后，确保不会引入新的问题。" \
+            --output-format text > fix-summary.md
+
+      - name: 提交并推送
+        run: |
+          git config user.name "Claude Code Bot"
+          git config user.email "claude-bot@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || {
+            git commit -m "fix: 自动修复 #${{ github.event.issue.number }}"
+            git push origin fix/issue-${{ github.event.issue.number }}
+          }
+
+      - name: 创建 Pull Request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('fix-summary.md', 'utf8');
+
+            try {
+              const { data: pr } = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `fix: 自动修复 #${context.payload.issue.number}`,
+                head: `fix/issue-${context.payload.issue.number}`,
+                base: 'main',
+                body: [
+                  `修复 #${context.payload.issue.number}`,
+                  '',
+                  '## 修复说明',
+                  '',
+                  summary,
+                  '',
+                  '---',
+                  '*此 PR 由 Claude Code 自动生成，请仔细审查后再合并。*'
+                ].join('\n')
+              });
+
+              console.log(`PR 已创建: ${pr.html_url}`);
+            } catch (error) {
+              console.log('没有需要提交的变更或 PR 创建失败');
+            }
+```
+
+## CI/CD 安全注意事项
+
+### API Key 安全
+
+```yaml
+# 正确：使用 GitHub Secrets
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+# 错误：硬编码 API Key（永远不要这样做）
+# env:
+#   ANTHROPIC_API_KEY: sk-ant-api03-xxxxxxxxxxxx
+```
+
+### 权限最小化原则
+
+只授予工作流实际需要的权限：
+
+```yaml
+permissions:
+  contents: read          # 只读代码（审查场景）
+  pull-requests: write    # 写 PR 评论
+
+# 需要推送代码的场景
+permissions:
+  contents: write         # 读写代码
+  pull-requests: write    # 创建/更新 PR
+```
+
+### 防止恶意 PR 攻击
+
+对于公开仓库，外部贡献者提交的 PR 可能包含恶意代码。需要特别注意：
+
+```yaml
+# 仅在信任的 PR 上运行（如仓库成员的 PR）
+jobs:
+  review:
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+```
+
+这个条件确保只有来自同一仓库的 PR（非 fork 仓库的 PR）才会触发工作流，防止外部人员通过恶意 PR 获取 API Key。
+
+### 输入净化
+
+在将用户输入传递给 Claude Code 之前，注意净化可能的注入内容：
+
+```yaml
+- name: 净化 Issue 内容
+  id: sanitize
+  run: |
+    # 移除可能的命令注入字符
+    SAFE_TITLE=$(echo "${{ github.event.issue.title }}" | tr -d '`$(){}')
+    echo "title=$SAFE_TITLE" >> $GITHUB_OUTPUT
+```
+
+## 成本管理
+
+### 控制 API 调用频率
+
+```yaml
+# 方法 1：限制触发条件
+on:
+  pull_request:
+    types: [opened]  # 仅在 PR 创建时触发，不在每次推送时触发
+    paths:
+      - 'src/**'     # 仅当 src 目录有变更时触发
+      - '!**/*.md'   # 排除 Markdown 文件变更
+
+# 方法 2：添加并发控制，避免重复运行
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true  # 取消之前的运行
+```
+
+### 限制 Token 消耗
+
+```yaml
+- name: Claude Code 审查
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  run: |
+    # 使用 --max-turns 限制交互轮次
+    claude -p "简要审查 PR 变更，仅报告严重问题" \
+      --max-turns 3 \
+      --output-format text > review.md
+```
+
+### 监控使用量
+
+建议定期检查 Anthropic Console 中的 API 使用量：
+
+- 设置使用量预警
+- 监控每个工作流的 Token 消耗
+- 根据实际需求调整触发频率
+
+## 完整示例：PR 审查工作流
+
+以下是一个经过生产验证的完整 PR 审查工作流：
+
+```yaml
+name: Claude Code PR 审查
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'package.json'
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    # 仅对仓库内部的 PR 执行（安全考虑）
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 安装 Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: 安装项目依赖
+        run: npm ci
+
+      - name: 获取变更信息
+        id: changes
+        run: |
+          echo "diff_stat<<EOF" >> $GITHUB_OUTPUT
+          git diff --stat origin/${{ github.base_ref }}...HEAD >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "file_count=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | wc -l)" >> $GITHUB_OUTPUT
+
+      - name: Claude Code 综合审查
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "你是一位资深代码审查员。请对当前 PR 进行全面的代码审查。
+
+          变更概览：
+          ${{ steps.changes.outputs.diff_stat }}
+
+          请执行以下步骤：
+          1. 运行 git diff origin/${{ github.base_ref }}...HEAD 查看完整变更
+          2. 分析代码质量、安全性、性能
+          3. 生成审查报告
+
+          报告格式要求：
+          - 使用 Markdown 格式
+          - 按严重程度分类（严重/警告/建议）
+          - 每个问题标明文件名和行号
+          - 给出具体的修改建议
+          - 最后给出总体评价和是否建议合并" \
+            --max-turns 5 \
+            --output-format text > review-result.md
+
+      - name: 发表审查评论
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const review = fs.readFileSync('review-result.md', 'utf8');
+            const fileCount = '${{ steps.changes.outputs.file_count }}';
+
+            const body = [
+              '## Claude Code 自动审查报告',
+              '',
+              `> 审查了 ${fileCount} 个文件的变更`,
+              '',
+              review,
+              '',
+              '---',
+              '*此审查由 Claude Code 自动生成，仅供参考，不替代人工审查。*'
+            ].join('\n');
+
+            // 查找是否已有 Claude Code 的评论
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.data.find(
+              c => c.body.includes('Claude Code 自动审查报告')
+            );
+
+            if (botComment) {
+              // 更新已有评论
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              // 创建新评论
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+```
+
+## 小结
+
+本节详细介绍了 Claude Code 与 GitHub Actions 的集成方案。核心知识点回顾：
+
+- **环境配置**：通过 GitHub Secrets 安全存储 API Key
+- **代码审查**：自动化的安全审查、性能审查、综合审查
+- **PR 辅助**：自动生成 PR 描述，提升团队协作效率
+- **Bug 修复**：通过 Issue 标签触发自动修复流程
+- **安全策略**：权限最小化、防止恶意 PR、输入净化
+- **成本管理**：触发条件过滤、并发控制、Token 限制
+
+下一节我们将学习如何在 GitLab CI/CD 中集成 Claude Code。

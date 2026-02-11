@@ -1,0 +1,573 @@
+---
+title: "MCP Server 实战"
+description: "动手配置和使用常见 MCP Server，并学习构建自定义 Server"
+order: 2
+section: advanced
+difficulty: advanced
+readingTime: 15
+pubDate: 2026-02-09
+tags: ["MCP", "Server", "实战", "自定义"]
+---
+
+## 配置常用 MCP Server
+
+上一节我们了解了 MCP 的核心概念。现在让我们动手配置几个最实用的 MCP Server，并在真实的开发场景中使用它们。
+
+### Filesystem Server
+
+Filesystem Server 是最基础也是使用频率最高的 MCP Server 之一。它让 Claude Code 能够以受控的方式访问指定目录下的文件。
+
+```bash
+# 添加 Filesystem Server，限定访问范围为项目目录
+claude mcp add filesystem -- npx -y @anthropic/mcp-server-filesystem /home/user/my-project
+```
+
+虽然 Claude Code 本身已经有文件读写能力，但 Filesystem Server 提供了更精细的控制和额外的功能：
+
+- 限定可访问的目录范围
+- 提供目录树浏览功能
+- 支持文件搜索和过滤
+
+### 数据库 MCP Server
+
+数据库 Server 是 MCP 生态中最有价值的 Server 类型之一。它让 Claude Code 能直接与数据库交互，基于真实数据编写和调试代码。
+
+#### PostgreSQL Server
+
+```bash
+# 添加 PostgreSQL Server
+claude mcp add postgres -- npx -y @anthropic/mcp-server-postgres "postgresql://user:password@localhost:5432/mydb"
+```
+
+对应的配置文件内容：
+
+```json
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic/mcp-server-postgres",
+        "postgresql://user:password@localhost:5432/mydb"
+      ]
+    }
+  }
+}
+```
+
+更安全的做法是使用环境变量传递连接字符串：
+
+```json
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic/mcp-server-postgres",
+        "${DATABASE_URL}"
+      ],
+      "env": {
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
+    }
+  }
+}
+```
+
+配置完成后，你可以在对话中这样使用：
+
+```
+你: 帮我查看 users 表的结构和前 5 条记录
+
+Claude Code: 我来查询数据库...
+[调用 MCP 工具: query]
+SQL: SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'users';
+
+users 表结构：
+- id: integer (主键)
+- email: varchar
+- name: varchar
+- created_at: timestamp
+
+[调用 MCP 工具: query]
+SQL: SELECT * FROM users LIMIT 5;
+
+前 5 条记录：
+| id | email              | name   | created_at          |
+|----|--------------------|--------|---------------------|
+| 1  | alice@example.com  | Alice  | 2026-01-15 10:30:00 |
+| 2  | bob@example.com    | Bob    | 2026-01-16 14:20:00 |
+...
+```
+
+#### SQLite Server
+
+SQLite Server 适合本地开发和小型项目：
+
+```bash
+# 添加 SQLite Server
+claude mcp add sqlite -- npx -y @anthropic/mcp-server-sqlite /path/to/database.db
+```
+
+SQLite Server 除了查询功能外，通常还提供创建表、插入数据等写操作工具，非常适合开发阶段快速迭代数据模型。
+
+### GitHub MCP Server
+
+GitHub Server 让 Claude Code 能直接与 GitHub API 交互，无需离开终端就能管理仓库、Issue 和 Pull Request。
+
+```bash
+# 设置 GitHub Token 环境变量
+export GITHUB_TOKEN="ghp_your_personal_access_token"
+
+# 添加 GitHub Server
+claude mcp add github -- npx -y @anthropic/mcp-server-github
+```
+
+配置文件：
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+GitHub Server 提供的常见工具：
+
+| 工具名称 | 功能 |
+|---|---|
+| `create_issue` | 创建 Issue |
+| `list_issues` | 列出 Issue |
+| `create_pull_request` | 创建 Pull Request |
+| `search_repositories` | 搜索仓库 |
+| `get_file_contents` | 获取文件内容 |
+| `push_files` | 推送文件 |
+
+使用示例：
+
+```
+你: 帮我创建一个 Issue，标题是 "修复登录页面样式问题"，描述登录按钮在移动端不居中
+
+Claude Code: 我来通过 GitHub API 创建 Issue...
+[调用 MCP 工具: create_issue]
+已成功创建 Issue #42: "修复登录页面样式问题"
+链接: https://github.com/user/repo/issues/42
+```
+
+### Web Search MCP Server
+
+Web Search Server 让 Claude Code 能搜索互联网获取最新信息，对于查找文档、排查错误等场景非常有用。
+
+```bash
+# 使用 Brave Search API 的 Web Search Server
+claude mcp add brave-search -- npx -y @anthropic/mcp-server-brave-search
+```
+
+```json
+{
+  "mcpServers": {
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+## 项目级与全局 MCP 配置
+
+MCP Server 可以在两个层级进行配置，适用于不同的场景。
+
+### 项目级配置
+
+存放在项目根目录的 `.claude/settings.json` 中：
+
+```json
+{
+  "mcpServers": {
+    "project-db": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-postgres", "${DATABASE_URL}"]
+    }
+  }
+}
+```
+
+**适用场景**：
+- 只在特定项目中需要的 Server（如项目专属数据库）
+- 需要与团队共享的配置（可提交到版本控制）
+- 需要严格限制权限范围的场景
+
+### 全局配置
+
+存放在用户目录的 `~/.claude/settings.json` 中：
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+**适用场景**：
+- 跨项目通用的 Server（如 GitHub、Web Search）
+- 个人开发工具
+- 不包含项目特定凭证的服务
+
+### 配置合并规则
+
+当项目级和全局配置中存在同名 Server 时，项目级配置优先。这意味着你可以在全局配置中设置默认值，在特定项目中覆盖它。
+
+```
+全局配置: github (默认 Token)
+项目配置: github (项目专属 Token)
+→ 最终使用: 项目配置的 github Server
+```
+
+## MCP Server 调试
+
+遇到 MCP Server 无法正常工作时，`claude mcp` 命令提供了丰富的调试手段。
+
+### 查看 Server 状态
+
+```bash
+# 列出所有已配置的 MCP Server 及其状态
+claude mcp list
+```
+
+输出示例：
+
+```
+MCP Servers:
+  filesystem  ✓ running  (stdio)   3 tools
+  postgres    ✗ error    (stdio)   connection refused
+  github      ✓ running  (stdio)   8 tools
+```
+
+### 获取 Server 详细信息
+
+```bash
+# 查看特定 Server 的详细配置和工具列表
+claude mcp get filesystem
+```
+
+### 常见问题排查
+
+**问题 1：Server 启动失败**
+
+```bash
+# 检查 npx 是否可以正常运行对应的包
+npx -y @anthropic/mcp-server-filesystem --help
+```
+
+如果包无法下载或运行，检查网络连接和 npm 配置。
+
+**问题 2：数据库连接失败**
+
+```
+错误: connection refused
+```
+
+排查步骤：
+1. 确认数据库服务已启动
+2. 检查连接字符串中的主机、端口、用户名和密码
+3. 确认数据库防火墙允许本地连接
+
+**问题 3：环境变量未生效**
+
+```bash
+# 确认环境变量已设置
+echo $GITHUB_TOKEN
+
+# 如果使用 .env 文件，确认文件路径正确
+cat .env
+```
+
+**问题 4：工具列表为空**
+
+这通常意味着 Server 启动了但初始化未完成。尝试重启 Claude Code 或重新添加 Server：
+
+```bash
+claude mcp remove problematic-server
+claude mcp add problematic-server -- npx -y @some/mcp-server
+```
+
+## 构建自定义 MCP Server
+
+当现有的 MCP Server 无法满足需求时，你可以构建自己的 Server。下面以 TypeScript 为例，演示构建一个简单的天气查询 MCP Server。
+
+### 项目初始化
+
+```bash
+mkdir mcp-server-weather
+cd mcp-server-weather
+npm init -y
+npm install @modelcontextprotocol/sdk zod
+npm install -D typescript @types/node
+```
+
+### 创建 Server 代码
+
+```typescript
+// src/index.ts
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+// 创建 MCP Server 实例
+const server = new McpServer({
+  name: "weather",
+  version: "1.0.0",
+});
+
+// 注册一个工具：获取天气信息
+server.tool(
+  "get_weather",
+  "获取指定城市的天气信息",
+  {
+    city: z.string().describe("城市名称，如 '北京'、'上海'"),
+  },
+  async ({ city }) => {
+    // 这里替换为真实的天气 API 调用
+    const weatherData = await fetchWeather(city);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(weatherData, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// 模拟天气 API（实际项目中替换为真实 API）
+async function fetchWeather(city: string) {
+  // 模拟数据
+  return {
+    city,
+    temperature: 22,
+    condition: "晴",
+    humidity: 45,
+    wind: "东北风 3 级",
+  };
+}
+
+// 启动 Server
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error("Weather MCP Server 已启动");
+}
+
+main().catch(console.error);
+```
+
+### 配置 TypeScript
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*"]
+}
+```
+
+### 编译和测试
+
+```bash
+# 编译 TypeScript
+npx tsc
+
+# 本地测试：直接运行查看是否有错误
+node dist/index.js
+```
+
+### 在 Claude Code 中注册
+
+```bash
+# 使用本地路径注册自定义 Server
+claude mcp add weather -- node /path/to/mcp-server-weather/dist/index.js
+```
+
+或者在配置文件中手动添加：
+
+```json
+{
+  "mcpServers": {
+    "weather": {
+      "command": "node",
+      "args": ["/path/to/mcp-server-weather/dist/index.js"]
+    }
+  }
+}
+```
+
+### 添加更多功能
+
+一个完整的 MCP Server 通常会提供多个工具。让我们扩展天气 Server：
+
+```typescript
+// 添加天气预报工具
+server.tool(
+  "get_forecast",
+  "获取指定城市未来几天的天气预报",
+  {
+    city: z.string().describe("城市名称"),
+    days: z.number().min(1).max(7).describe("预报天数，1-7"),
+  },
+  async ({ city, days }) => {
+    const forecast = await fetchForecast(city, days);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(forecast, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// 添加资源：天气 API 使用说明
+server.resource(
+  "weather-api-docs",
+  "weather://docs",
+  async (uri) => {
+    return {
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: "text/plain",
+          text: "天气 Server 使用说明：支持 get_weather 和 get_forecast 两个工具...",
+        },
+      ],
+    };
+  }
+);
+```
+
+## MCP Server 生命周期管理
+
+理解 MCP Server 的生命周期有助于更好地管理和排查问题。
+
+### 生命周期阶段
+
+```
+1. 启动（Start）
+   └─ Claude Code 读取配置 → 启动 Server 进程
+
+2. 初始化（Initialize）
+   └─ Client 与 Server 握手 → 交换能力信息
+
+3. 就绪（Ready）
+   └─ Server 注册工具和资源 → Client 获取可用工具列表
+
+4. 运行（Running）
+   └─ 响应工具调用请求 → 返回结果
+
+5. 关闭（Shutdown）
+   └─ Claude Code 退出 → Server 进程终止
+```
+
+### 热重载
+
+修改 MCP Server 配置后，通常需要重启 Claude Code 才能生效。不过你也可以在对话中使用 `/mcp` 命令来检查和管理 Server 状态。
+
+### 资源清理
+
+MCP Server 应当正确处理关闭信号，释放数据库连接、文件句柄等资源：
+
+```typescript
+// 在自定义 Server 中处理关闭
+process.on("SIGINT", async () => {
+  // 关闭数据库连接
+  await db.close();
+  // 清理临时文件
+  await cleanup();
+  process.exit(0);
+});
+```
+
+## 排查常见问题
+
+以下是使用 MCP Server 时最常遇到的问题和解决方案。
+
+### 权限问题
+
+```
+错误: Permission denied
+```
+
+解决方案：
+- 确保 Server 可执行文件有执行权限
+- 检查数据库用户权限
+- 检查文件系统访问权限
+
+### 超时问题
+
+如果 MCP 工具调用长时间无响应：
+
+- 检查网络连接（对于远程 Server 和 API 调用）
+- 检查 Server 日志中是否有卡死的请求
+- 考虑增加超时配置（如果 Server 支持）
+
+### 版本兼容性
+
+```bash
+# 检查 MCP SDK 版本
+npm list @modelcontextprotocol/sdk
+
+# 更新到最新版本
+npm update @modelcontextprotocol/sdk
+```
+
+### Server 崩溃恢复
+
+当 MCP Server 意外崩溃时，Claude Code 通常会在下次工具调用时尝试重启它。如果重启也失败，你可能需要：
+
+1. 检查 Server 的错误日志
+2. 手动重启 Claude Code
+3. 重新添加出问题的 Server
+
+## 小结
+
+本节通过大量实战练习，带你掌握了 MCP Server 的配置和使用。核心知识点回顾：
+
+- **常用 Server**：Filesystem、PostgreSQL、SQLite、GitHub、Web Search
+- **配置层级**：项目级配置优先于全局配置
+- **调试方法**：使用 `claude mcp` 命令排查问题
+- **自定义 Server**：使用 MCP SDK 和 TypeScript 构建自己的 Server
+- **生命周期**：启动、初始化、就绪、运行、关闭五个阶段
+- **问题排查**：权限、超时、版本兼容、崩溃恢复
+
+掌握 MCP Server 后，你将能大幅扩展 Claude Code 的能力边界。下一节我们将学习 Claude Code 的插件开发，进一步定制你的开发体验。

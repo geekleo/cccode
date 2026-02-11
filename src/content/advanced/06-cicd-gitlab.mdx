@@ -1,0 +1,585 @@
+---
+title: "CI/CD 集成: GitLab"
+description: "将 Claude Code 集成到 GitLab CI/CD 流水线中，实现 Merge Request 自动审查与代码辅助"
+order: 6
+section: advanced
+difficulty: advanced
+readingTime: 12
+pubDate: 2026-02-09
+tags: ["CI/CD", "GitLab", "自动化", "Merge Request"]
+---
+
+## GitLab CI/CD 概述
+
+GitLab CI/CD 是 GitLab 内置的持续集成和持续部署平台。与 GitHub Actions 类似，它通过 YAML 配置文件定义流水线，但在架构和配置语法上有显著差异。本节将介绍如何将 Claude Code 集成到 GitLab CI/CD 中。
+
+### GitLab CI/CD 与 GitHub Actions 的主要区别
+
+| 特性 | GitLab CI/CD | GitHub Actions |
+|---|---|---|
+| 配置文件 | `.gitlab-ci.yml` | `.github/workflows/*.yml` |
+| 执行环境 | GitLab Runner | GitHub-hosted Runner |
+| 变量管理 | CI/CD Variables | Repository Secrets |
+| 流水线结构 | stages + jobs | jobs + steps |
+| 触发机制 | rules / only / except | on 事件 |
+| 产物共享 | artifacts + cache | artifacts + cache |
+
+### GitLab 的 Stage 概念
+
+GitLab CI/CD 使用 stages 来组织流水线。同一 stage 中的 job 并行执行，不同 stage 按顺序执行：
+
+```
+┌─────────┐   ┌─────────┐   ┌─────────┐   ┌──────────┐
+│  build   │ → │  test    │ → │ review  │ → │  deploy  │
+│         │   │         │   │         │   │          │
+│ compile │   │ unit    │   │ claude  │   │ staging  │
+│         │   │ lint    │   │ review  │   │          │
+└─────────┘   └─────────┘   └─────────┘   └──────────┘
+```
+
+## 配置 .gitlab-ci.yml
+
+### 基本配置结构
+
+创建项目根目录下的 `.gitlab-ci.yml` 文件：
+
+```yaml
+# 定义流水线阶段
+stages:
+  - build
+  - test
+  - review
+  - deploy
+
+# 全局变量
+variables:
+  NODE_VERSION: "20"
+
+# 基础镜像
+image: node:20
+
+# Claude Code 代码审查任务
+claude-review:
+  stage: review
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - |
+      claude -p "审查当前 Merge Request 的代码变更。
+      运行 git diff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD 查看变更。
+      给出审查意见，包括代码质量、安全性和性能方面的建议。" \
+        --output-format text > review.md
+    - cat review.md
+  artifacts:
+    paths:
+      - review.md
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+```
+
+### 完整的审查流水线
+
+```yaml
+stages:
+  - prepare
+  - test
+  - review
+
+variables:
+  NODE_VERSION: "20"
+
+# 准备阶段：安装依赖
+install-deps:
+  stage: prepare
+  image: node:20
+  script:
+    - npm ci
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+
+# 测试阶段
+unit-test:
+  stage: test
+  image: node:20
+  script:
+    - npm ci
+    - npm test
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+lint:
+  stage: test
+  image: node:20
+  script:
+    - npm ci
+    - npm run lint
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Claude Code 审查阶段
+claude-code-review:
+  stage: review
+  image: node:20
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - |
+      claude -p "你是一位资深代码审查员。请对当前 Merge Request 进行全面审查。
+
+      变更概览：
+      $(git diff --stat origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD)
+
+      请运行 git diff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD 查看完整变更。
+
+      审查要求：
+      1. 逻辑正确性：代码是否实现了预期功能
+      2. 安全性：是否有安全漏洞
+      3. 性能：是否有性能问题
+      4. 代码质量：是否符合编码规范
+      5. 测试覆盖：变更是否有对应测试
+
+      按以下格式输出：
+      ### 总体评价
+      ### 严重问题
+      ### 建议优化
+      ### 亮点" \
+        --max-turns 5 \
+        --output-format text > review-result.md
+    - cat review-result.md
+  artifacts:
+    paths:
+      - review-result.md
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: true  # 审查失败不阻塞流水线
+```
+
+## 配置环境变量
+
+### 在 GitLab 中设置 CI/CD Variables
+
+1. 进入项目 **Settings** > **CI/CD**
+2. 展开 **Variables** 部分
+3. 点击 **Add variable**
+4. 配置如下：
+
+```
+Key:       ANTHROPIC_API_KEY
+Value:     sk-ant-api03-xxxxxxxxxxxx
+Type:      Variable
+Flags:     ✓ Mask variable（隐藏日志中的值）
+           ✓ Protect variable（仅在受保护分支上可用）
+```
+
+### 变量保护
+
+GitLab 提供了更细粒度的变量保护机制：
+
+| 选项 | 说明 |
+|---|---|
+| Protected | 仅在受保护分支/标签上可用 |
+| Masked | 在 CI/CD 日志中隐藏值 |
+| Environment scope | 限定在特定环境中可用 |
+
+推荐同时启用 Protected 和 Masked，确保 API Key 的安全性。
+
+### 分组级别变量
+
+如果你有多个项目需要使用 Claude Code，可以在 Group 级别设置变量：
+
+```
+Group Settings → CI/CD → Variables → Add variable
+
+这样组内所有项目都可以使用该变量，无需逐个配置。
+```
+
+## 流水线阶段配置
+
+### 多阶段流水线设计
+
+```yaml
+stages:
+  - build        # 构建阶段
+  - test         # 测试阶段
+  - ai-review    # AI 审查阶段
+  - security     # 安全扫描
+  - deploy       # 部署阶段
+
+# 构建
+build:
+  stage: build
+  image: node:20
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 hour
+
+# 单元测试
+test:
+  stage: test
+  image: node:20
+  script:
+    - npm ci
+    - npm test -- --coverage
+  coverage: /Lines\s*:\s*(\d+\.?\d*)%/
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+
+# Claude Code AI 审查
+ai-review:
+  stage: ai-review
+  image: node:20
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - |
+      claude -p "对 MR 变更进行代码审查，使用 git diff 查看变更内容。
+      重点关注代码质量和潜在 Bug。输出简洁的审查报告。" \
+        --output-format text > ai-review.md
+  artifacts:
+    paths:
+      - ai-review.md
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: true
+
+# 安全扫描（利用 Claude Code 进行补充安全审查）
+security-review:
+  stage: security
+  image: node:20
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - |
+      claude -p "对当前 MR 变更进行安全审查。
+      运行 git diff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD 查看变更。
+      检查：SQL 注入、XSS、CSRF、敏感信息泄露、不安全的依赖。
+      输出安全审查报告。" \
+        --output-format text > security-review.md
+  artifacts:
+    paths:
+      - security-review.md
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: true
+```
+
+## Merge Request 自动化
+
+### 自动添加审查评论
+
+GitLab 允许通过 API 在 Merge Request 上添加评论。结合 Claude Code 的审查结果：
+
+```yaml
+claude-mr-comment:
+  stage: review
+  image: node:20
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    # 生成审查报告
+    - |
+      claude -p "审查当前 MR 的代码变更，使用 git diff 查看具体变更。
+      输出 Markdown 格式的审查报告。" \
+        --output-format text > review.md
+    # 通过 GitLab API 发表评论
+    - |
+      REVIEW_BODY=$(cat review.md)
+      curl --request POST \
+        --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+        --header "Content-Type: application/json" \
+        --data "{\"body\": \"## Claude Code 自动审查报告\n\n${REVIEW_BODY}\"}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: true
+```
+
+注意：你需要额外配置一个 `GITLAB_API_TOKEN` 变量，这是一个具有 API 访问权限的 GitLab Personal Access Token 或 Project Access Token。
+
+### MR 描述自动生成
+
+```yaml
+auto-mr-description:
+  stage: review
+  image: node:20
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - |
+      claude -p "分析当前 MR 的所有变更。
+      运行 git log origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD --oneline 查看提交。
+      运行 git diff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD 查看变更。
+
+      生成结构化的 MR 描述，包括：
+      1. 变更概述
+      2. 主要修改点
+      3. 影响范围
+      4. 测试建议" \
+        --output-format text > mr-description.md
+    # 更新 MR 描述
+    - |
+      DESCRIPTION=$(cat mr-description.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+      curl --request PUT \
+        --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+        --header "Content-Type: application/json" \
+        --data "{\"description\": ${DESCRIPTION}}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual  # 手动触发，避免覆盖已有描述
+  allow_failure: true
+```
+
+## 代码审查自动化
+
+### 按文件类型分类审查
+
+```yaml
+review-frontend:
+  stage: review
+  image: node:20
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - |
+      CHANGED_FILES=$(git diff --name-only origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD | grep -E '\.(tsx?|jsx?|vue|svelte)$' || true)
+      if [ -n "$CHANGED_FILES" ]; then
+        claude -p "审查以下前端文件的变更：
+        $CHANGED_FILES
+
+        使用 git diff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD 查看变更。
+        仅关注前端相关文件。
+
+        审查重点：
+        - 组件设计是否合理
+        - 状态管理是否正确
+        - 是否有性能问题（不必要的重渲染等）
+        - 无障碍访问（a11y）
+        - 响应式设计" \
+          --output-format text > frontend-review.md
+      else
+        echo "没有前端文件变更" > frontend-review.md
+      fi
+  artifacts:
+    paths:
+      - frontend-review.md
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: true
+
+review-backend:
+  stage: review
+  image: node:20
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - |
+      CHANGED_FILES=$(git diff --name-only origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD | grep -E '\.(py|go|java|rs)$' || true)
+      if [ -n "$CHANGED_FILES" ]; then
+        claude -p "审查以下后端文件的变更：
+        $CHANGED_FILES
+
+        使用 git diff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD 查看变更。
+        仅关注后端相关文件。
+
+        审查重点：
+        - API 设计是否合理
+        - 错误处理是否完善
+        - 数据库操作是否安全（SQL 注入）
+        - 并发安全
+        - 日志和监控" \
+          --output-format text > backend-review.md
+      else
+        echo "没有后端文件变更" > backend-review.md
+      fi
+  artifacts:
+    paths:
+      - backend-review.md
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: true
+```
+
+## GitLab 特有的技巧
+
+### 使用 GitLab CI/CD 预定义变量
+
+GitLab 提供了丰富的预定义变量，可以在 Claude Code 的提示词中使用：
+
+| 变量 | 说明 |
+|---|---|
+| `$CI_MERGE_REQUEST_TARGET_BRANCH_NAME` | MR 目标分支名 |
+| `$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME` | MR 源分支名 |
+| `$CI_MERGE_REQUEST_IID` | MR 编号 |
+| `$CI_MERGE_REQUEST_TITLE` | MR 标题 |
+| `$CI_PROJECT_DIR` | 项目目录路径 |
+| `$CI_COMMIT_SHA` | 当前提交 SHA |
+| `$CI_COMMIT_MESSAGE` | 当前提交消息 |
+
+### 条件执行
+
+```yaml
+# 仅在特定文件变更时执行审查
+claude-review:
+  stage: review
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - src/**/*
+        - tests/**/*
+      when: always
+    - when: never
+```
+
+### 缓存 Claude Code 安装
+
+```yaml
+# 利用缓存加速 Claude Code 安装
+claude-review:
+  stage: review
+  image: node:20
+  cache:
+    key: claude-code-cache
+    paths:
+      - /usr/local/lib/node_modules/@anthropic-ai/
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - claude -p "审查代码..." --output-format text
+```
+
+### 超时配置
+
+```yaml
+claude-review:
+  stage: review
+  timeout: 10 minutes  # 设置任务超时时间
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - claude -p "审查代码..." --max-turns 5 --output-format text
+```
+
+### 使用 needs 关键字优化流水线
+
+```yaml
+stages:
+  - build
+  - test
+  - review
+
+build:
+  stage: build
+  script:
+    - npm ci && npm run build
+
+unit-test:
+  stage: test
+  needs: ["build"]
+  script:
+    - npm test
+
+# 代码审查不依赖构建结果，可以直接执行
+claude-review:
+  stage: review
+  needs: []  # 不依赖任何前置 job，立即开始
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - claude -p "审查代码..." --output-format text
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+```
+
+使用 `needs: []` 可以让 Claude Code 审查任务与构建和测试并行执行，缩短总体流水线时间。
+
+## 与 GitHub Actions 集成的对比
+
+### 配置语法对比
+
+**触发条件**：
+
+```yaml
+# GitLab
+rules:
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# GitHub Actions
+on:
+  pull_request:
+    types: [opened, synchronize]
+```
+
+**变量引用**：
+
+```yaml
+# GitLab：使用 $ 前缀
+script:
+  - echo $CI_MERGE_REQUEST_IID
+
+# GitHub Actions：使用 ${{ }} 语法
+run: echo ${{ github.event.pull_request.number }}
+```
+
+**产物共享**：
+
+```yaml
+# GitLab：artifacts 关键字
+artifacts:
+  paths:
+    - review.md
+  expire_in: 1 week
+
+# GitHub Actions：需要使用 actions/upload-artifact
+- uses: actions/upload-artifact@v4
+  with:
+    name: review
+    path: review.md
+```
+
+### 功能对比总结
+
+| 功能 | GitLab | GitHub Actions |
+|---|---|---|
+| 配置复杂度 | 单文件，结构清晰 | 多文件，灵活度高 |
+| 变量管理 | 内置分级变量 | Secrets + Variables |
+| 审查评论 | 需调用 API | 有官方 Action |
+| 并行执行 | 同 stage 自动并行 | 需要 matrix 策略 |
+| 缓存机制 | 内置缓存 | 需要专门 Action |
+| 环境管理 | 内置环境功能 | 需要 environments |
+
+### 选择建议
+
+- **已经使用 GitLab**：直接使用 GitLab CI/CD，配置简单，与 GitLab 功能深度集成
+- **已经使用 GitHub**：使用 GitHub Actions，社区生态丰富，Action 市场选择多
+- **两者都有**：可以分别配置，或选择主要平台集中管理
+
+## 小结
+
+本节介绍了 Claude Code 与 GitLab CI/CD 的集成方案。核心知识点回顾：
+
+- **配置基础**：`.gitlab-ci.yml` 文件结构和 stages 概念
+- **变量管理**：通过 CI/CD Variables 安全存储 API Key
+- **流水线设计**：多阶段流水线，审查任务可独立运行
+- **MR 自动化**：自动审查评论、MR 描述生成
+- **分类审查**：按文件类型分别进行针对性审查
+- **GitLab 技巧**：预定义变量、条件执行、缓存优化、needs 并行
+- **平台对比**：GitLab CI/CD 与 GitHub Actions 的异同
+
+下一节我们将学习 Claude Code 的脚本和自动化技巧，进一步发挥 CLI 的能力。

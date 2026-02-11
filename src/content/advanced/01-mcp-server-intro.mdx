@@ -1,0 +1,316 @@
+---
+title: "MCP Server 概述"
+description: "深入理解 Model Context Protocol 的核心概念、架构设计与安全模型"
+order: 1
+section: advanced
+difficulty: advanced
+readingTime: 12
+pubDate: 2026-02-09
+tags: ["MCP", "Server", "协议", "架构"]
+---
+
+## 什么是 MCP
+
+Model Context Protocol（简称 MCP）是 Anthropic 推出的一项开放协议，旨在标准化大语言模型与外部数据源、工具之间的通信方式。你可以把 MCP 想象成 AI 世界的"USB 接口"——它定义了一套统一的规范，让 Claude Code 能够安全、高效地连接各种外部服务和数据源。
+
+在没有 MCP 之前，如果你想让 Claude Code 访问数据库、调用 API 或操作文件系统，需要针对每种服务编写不同的集成代码。MCP 改变了这一局面：只要服务提供了符合 MCP 协议的 Server，Claude Code 就能直接使用它提供的工具和资源。
+
+### MCP 解决的核心问题
+
+- **标准化集成**：统一的协议规范，无需为每种服务单独开发适配层
+- **安全隔离**：Server 在独立进程中运行，与 Claude Code 主进程隔离
+- **可扩展性**：社区可以自由开发和分享 MCP Server，生态持续扩展
+- **上下文增强**：让 Claude Code 获取更丰富的上下文信息，提升代码生成质量
+
+## MCP 架构：客户端-服务端模型
+
+MCP 采用经典的客户端-服务端（Client-Server）架构。理解这一架构对于正确配置和使用 MCP Server 至关重要。
+
+### 架构组件
+
+```
+┌─────────────────────────────────────────────┐
+│              Claude Code (Host)              │
+│                                              │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐    │
+│  │MCP Client│ │MCP Client│ │MCP Client│    │
+│  │    A     │ │    B     │ │    C     │    │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘    │
+│       │             │             │          │
+└───────┼─────────────┼─────────────┼──────────┘
+        │             │             │
+  ┌─────┴─────┐ ┌─────┴─────┐ ┌────┴──────┐
+  │MCP Server │ │MCP Server │ │MCP Server │
+  │ Filesystem│ │ Database  │ │  GitHub   │
+  └───────────┘ └───────────┘ └───────────┘
+```
+
+**Host（宿主）**：即 Claude Code 本身，负责管理 MCP Client 的生命周期。
+
+**Client（客户端）**：由 Claude Code 自动创建和管理，每个 Client 与一个 Server 保持一对一的连接。
+
+**Server（服务端）**：独立运行的进程或服务，向 Client 暴露工具（Tools）、资源（Resources）和提示模板（Prompts）。
+
+### 通信流程
+
+1. Claude Code 启动时，根据配置文件初始化各个 MCP Server
+2. 每个 Server 启动后，Client 会获取该 Server 提供的工具列表
+3. 当用户与 Claude Code 对话时，Claude 会根据需要调用相应的 MCP 工具
+4. 工具调用结果返回给 Claude，Claude 将结果整合到回答中
+
+## 为什么 MCP 对 Claude Code 至关重要
+
+MCP 是 Claude Code 从"代码助手"进化为"全栈开发伙伴"的关键能力。
+
+### 扩展能力边界
+
+默认情况下，Claude Code 可以读写文件、执行命令。但通过 MCP Server，它的能力可以扩展到：
+
+- **数据库操作**：直接查询和修改 PostgreSQL、MySQL、SQLite 等数据库
+- **云服务管理**：操作 AWS、GCP、Azure 等云平台资源
+- **项目管理**：与 Jira、Linear、Notion 等工具集成
+- **监控告警**：访问 Sentry、Datadog 等监控平台的数据
+- **搜索引擎**：通过 Web Search Server 获取最新信息
+
+### 提升工作流效率
+
+```
+# 没有 MCP 的工作流
+1. 手动查询数据库获取数据
+2. 复制数据到 Claude Code 的对话中
+3. 让 Claude Code 基于数据编写代码
+4. 手动部署和验证
+
+# 有了 MCP 的工作流
+1. 让 Claude Code 通过 MCP 直接查询数据库
+2. Claude Code 基于实时数据编写和调试代码
+3. 通过 MCP 自动化部署和验证
+```
+
+## MCP Server 类型
+
+MCP 协议支持两种主要的传输方式：
+
+### stdio（标准输入输出）
+
+这是最常用的传输方式。MCP Server 作为子进程运行，通过标准输入（stdin）和标准输出（stdout）与 Client 通信。
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-filesystem", "/path/to/directory"]
+    }
+  }
+}
+```
+
+**特点**：
+- 启动快速，通信延迟低
+- 无需网络配置
+- 适合本地开发场景
+- Server 与 Claude Code 在同一台机器上运行
+
+### HTTP/SSE（Server-Sent Events）
+
+适用于远程 MCP Server 的场景。Client 通过 HTTP 请求发送消息，Server 通过 SSE 推送响应。
+
+```json
+{
+  "mcpServers": {
+    "remote-server": {
+      "url": "https://mcp.example.com/sse"
+    }
+  }
+}
+```
+
+**特点**：
+- 支持远程 Server 连接
+- 可以部署为共享服务，团队多人使用
+- 需要处理网络延迟和断线重连
+- 适合生产环境和团队协作
+
+## 配置 MCP Server
+
+Claude Code 通过 JSON 配置文件管理 MCP Server。配置可以放在不同的层级。
+
+### 配置文件层级
+
+| 配置文件位置 | 作用范围 | 优先级 |
+|---|---|---|
+| `.claude/settings.json`（项目目录） | 当前项目 | 最高 |
+| `~/.claude/settings.json`（用户目录） | 所有项目 | 中等 |
+
+### 基本配置格式
+
+在 `.claude/settings.json` 中添加 MCP Server 配置：
+
+```json
+{
+  "mcpServers": {
+    "server-name": {
+      "command": "执行命令",
+      "args": ["参数1", "参数2"],
+      "env": {
+        "ENV_VAR": "环境变量值"
+      }
+    }
+  }
+}
+```
+
+### 使用 CLI 命令配置
+
+除了手动编辑配置文件，你也可以使用 `claude mcp` 命令来管理 MCP Server：
+
+```bash
+# 添加 MCP Server
+claude mcp add filesystem -- npx -y @anthropic/mcp-server-filesystem /home/user/projects
+
+# 查看已配置的 MCP Server 列表
+claude mcp list
+
+# 删除 MCP Server
+claude mcp remove filesystem
+```
+
+## 内置与第三方 MCP Server
+
+### Anthropic 官方 Server
+
+Anthropic 维护了一系列官方 MCP Server：
+
+| Server 名称 | 功能 | 包名 |
+|---|---|---|
+| Filesystem | 文件系统操作 | `@anthropic/mcp-server-filesystem` |
+| GitHub | GitHub API 集成 | `@anthropic/mcp-server-github` |
+| GitLab | GitLab API 集成 | `@anthropic/mcp-server-gitlab` |
+| PostgreSQL | PostgreSQL 数据库 | `@anthropic/mcp-server-postgres` |
+| SQLite | SQLite 数据库 | `@anthropic/mcp-server-sqlite` |
+
+### 社区第三方 Server
+
+MCP 开放协议催生了活跃的社区生态。你可以在以下地方找到第三方 Server：
+
+- **MCP Server 目录**：https://github.com/modelcontextprotocol/servers
+- **npm 搜索**：搜索 `mcp-server` 关键词
+- **社区论坛**：各种开发者社区分享的自定义 Server
+
+## 实例：添加 Filesystem MCP Server
+
+下面通过一个完整的例子，演示如何添加和使用 Filesystem MCP Server。
+
+### 第一步：添加 Server
+
+```bash
+claude mcp add filesystem -- npx -y @anthropic/mcp-server-filesystem /home/user/projects
+```
+
+这条命令会在项目的 `.claude/settings.json` 中自动生成以下配置：
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic/mcp-server-filesystem",
+        "/home/user/projects"
+      ]
+    }
+  }
+}
+```
+
+### 第二步：验证 Server 状态
+
+```bash
+claude mcp list
+```
+
+你应该能看到 `filesystem` Server 已出现在列表中。
+
+### 第三步：在对话中使用
+
+启动 Claude Code 后，你可以像这样使用 Filesystem Server 提供的工具：
+
+```
+你: 请列出 /home/user/projects 目录下所有的 TypeScript 文件
+
+Claude Code: 我来使用 filesystem 工具查看目录内容...
+[调用 MCP 工具: list_directory]
+找到以下 TypeScript 文件：
+- src/index.ts
+- src/utils/helpers.ts
+- src/types/config.ts
+...
+```
+
+### 第四步：检查工具可用性
+
+在 Claude Code 对话中，你可以输入 `/mcp` 查看当前可用的 MCP Server 及其提供的工具列表。
+
+## MCP 安全模型
+
+安全性是 MCP 设计的核心考量。Claude Code 在多个层面保障 MCP Server 的安全使用。
+
+### 进程隔离
+
+每个 MCP Server 运行在独立的子进程中，即使某个 Server 出现异常，也不会影响 Claude Code 主进程或其他 Server。
+
+### 权限控制
+
+- **工具调用审批**：默认情况下，Claude Code 会在调用 MCP 工具前请求用户确认
+- **环境变量隔离**：每个 Server 只能访问其配置中明确声明的环境变量
+- **文件系统限制**：例如 Filesystem Server 只能访问配置中指定的目录
+
+### 安全最佳实践
+
+```
+建议：
+- 只安装来自可信来源的 MCP Server
+- 定期检查 MCP Server 的版本更新和安全公告
+- 为敏感操作的 Server 使用环境变量传递凭证，不要硬编码
+- 使用项目级配置而非全局配置，缩小权限范围
+- 审查第三方 MCP Server 的源代码
+
+避免：
+- 不要在配置文件中明文存储 API Key 或密码
+- 不要给 MCP Server 过大的文件系统访问范围
+- 不要在不信任的环境中运行未经审查的 MCP Server
+```
+
+### 敏感信息管理
+
+对于需要 API Key 等敏感信息的 MCP Server，推荐使用环境变量：
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+然后在系统环境变量或 `.env` 文件中设置 `GITHUB_TOKEN`，避免将凭证提交到代码仓库。
+
+## 小结
+
+本节介绍了 MCP 的核心概念和架构设计。关键要点回顾：
+
+- **MCP 是什么**：标准化 AI 与外部服务通信的开放协议
+- **架构模型**：Host-Client-Server 三层架构，Client 与 Server 一对一连接
+- **传输方式**：stdio 适合本地，HTTP/SSE 适合远程
+- **配置管理**：通过 `.claude/settings.json` 或 `claude mcp` 命令管理
+- **安全模型**：进程隔离、权限控制、凭证保护
+
+下一节我们将进入 MCP Server 的实战环节，动手配置和使用各种常见的 MCP Server。

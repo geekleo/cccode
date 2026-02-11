@@ -1,0 +1,101 @@
+---
+import { SITE } from '@lib/constants';
+
+interface Props {
+  title: string;
+  description: string;
+  image?: string;
+  jsonLd?: Record<string, any> | Record<string, any>[];
+}
+
+const { title, description, image, jsonLd } = Astro.props;
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+
+// Auto-generate OG image path from URL
+const ogSlug = Astro.url.pathname === '/' ? 'index' : Astro.url.pathname.replace(/^\/|\/$/g, '');
+const ogImage = image || `/og/${ogSlug}.svg`;
+
+// Detect language from URL
+const isEnglish = Astro.url.pathname.startsWith('/en');
+const currentLang = isEnglish ? 'en' : 'zh-CN';
+
+// hreflang: derive alternate paths
+const pathWithoutLocale = isEnglish
+  ? Astro.url.pathname.replace(/^\/en/, '') || '/'
+  : Astro.url.pathname;
+const zhHref = new URL(pathWithoutLocale, Astro.site);
+const enHref = new URL(`/en${pathWithoutLocale === '/' ? '' : pathWithoutLocale}`, Astro.site);
+
+// WebSite JSON-LD (every page)
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: SITE.title,
+  url: SITE.url,
+  inLanguage: currentLang,
+  description: SITE.description,
+};
+
+// Merge page-specific JSON-LD with site-level
+const allJsonLd = jsonLd
+  ? Array.isArray(jsonLd)
+    ? [websiteJsonLd, ...jsonLd]
+    : [websiteJsonLd, jsonLd]
+  : [websiteJsonLd];
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="generator" content={Astro.generator} />
+<meta name="theme-color" content="#6366f1" />
+<meta name="author" content={SITE.title} />
+
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="icon" type="image/x-icon" href="/favicon.ico" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/site.webmanifest" />
+<link rel="canonical" href={canonicalURL} />
+<link rel="alternate" type="application/rss+xml" title="Claude Code 教程" href="/rss.xml" />
+
+<!-- hreflang -->
+<link rel="alternate" hreflang="zh" href={zhHref} />
+<link rel="alternate" hreflang="en" href={enHref} />
+<link rel="alternate" hreflang="x-default" href={zhHref} />
+
+<title>{title}</title>
+<meta name="description" content={description} />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:url" content={canonicalURL} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={new URL(ogImage, Astro.site)} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:locale" content={isEnglish ? 'en_US' : 'zh_CN'} />
+<meta property="og:site_name" content={SITE.title} />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={new URL(ogImage, Astro.site)} />
+
+<!-- JSON-LD Structured Data -->
+{allJsonLd.map((ld) => (
+  <script type="application/ld+json" set:html={JSON.stringify(ld)} />
+))}
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+  rel="stylesheet"
+/>
+
+<!-- Dark mode: prevent flash -->
+<script is:inline>
+  const theme = localStorage.getItem('theme') ||
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+</script>

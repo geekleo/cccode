@@ -1,0 +1,448 @@
+---
+title: "Hooks 配置详解"
+description: "深入了解 Claude Code 的 Hooks 系统，通过配置自动化工作流来提升开发效率"
+order: 5
+section: intermediate
+difficulty: intermediate
+readingTime: 12
+pubDate: 2026-02-09
+tags: ["Hooks", "配置", "自动化", "settings.json"]
+---
+
+## 什么是 Hooks
+
+Hooks 是 Claude Code 提供的**事件钩子系统**。它允许你在 Claude 执行特定操作的前后自动运行自定义的 shell 命令。你可以把 Hooks 理解为 Git Hooks 的 Claude Code 版本——当特定事件发生时，自动触发你预设的脚本。
+
+例如，你可以配置：
+
+- 每当 Claude 编辑 TypeScript 文件后，自动运行 ESLint 检查
+- 每当 Claude 执行完任务后，发送桌面通知
+- 在 Claude 写入文件前，检查文件路径是否在允许范围内
+- 每当 Claude 修改代码后，自动运行格式化工具
+
+## Hook 的类型
+
+Claude Code 支持以下几种 Hook 类型：
+
+### PreToolUse
+
+在 Claude 调用工具**之前**触发。这个 Hook 可以拦截工具调用，甚至可以阻止操作执行。
+
+常见用途：
+
+- 在文件写入前进行安全检查
+- 在执行 shell 命令前验证命令内容
+- 在修改特定目录前发出警告
+
+### PostToolUse
+
+在 Claude 调用工具**之后**触发。这个 Hook 可以对工具调用的结果进行后处理。
+
+常见用途：
+
+- 文件修改后自动运行格式化
+- 代码变更后自动运行 linter
+- 文件保存后触发构建
+
+### Notification
+
+当 Claude Code 发送通知时触发。通常在需要用户关注的情况下使用。
+
+常见用途：
+
+- 自定义通知方式（例如发送到 Slack）
+- 播放提示音
+- 触发系统通知
+
+### Stop
+
+当 Claude 完成一轮响应并停止时触发。
+
+常见用途：
+
+- 自动运行测试
+- 执行代码质量检查
+- 生成任务完成报告
+
+### SubagentStop
+
+当 Claude 的子代理（Subagent）完成任务并停止时触发。
+
+常见用途：
+
+- 收集子代理的执行结果
+- 在子代理完成后执行清理操作
+
+## 配置文件位置
+
+Hooks 在 Claude Code 的 settings 文件中配置。有两个配置层级：
+
+### 项目级配置
+
+```text
+.claude/settings.json    <-- 项目根目录下
+```
+
+项目级 Hooks 只在当前项目中生效，适合与项目强相关的自动化操作。这个文件可以提交到版本控制，与团队共享。
+
+### 用户级配置
+
+```text
+~/.claude/settings.json    <-- 用户主目录下
+```
+
+用户级 Hooks 在所有项目中生效，适合个人偏好相关的配置。
+
+## Hook 的配置结构
+
+Hooks 配置在 settings.json 中的 `hooks` 字段下。基本结构如下：
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "编辑工具名称",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "要执行的 shell 命令"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 关键字段说明
+
+- **matcher**：匹配条件，指定哪些工具触发这个 Hook。可以是工具名称（如 `"Edit"`、`"Write"`、`"Bash"`），也可以留空表示匹配所有工具
+- **hooks**：触发条件匹配后要执行的命令列表
+- **type**：目前支持 `"command"` 类型
+- **command**：要执行的 shell 命令字符串
+
+### matcher 匹配规则
+
+matcher 字段匹配 Claude Code 内部使用的工具名称：
+
+- `"Edit"` - 文件编辑操作
+- `"Write"` - 文件写入操作
+- `"Bash"` - Shell 命令执行
+- `"Read"` - 文件读取操作
+- `"Glob"` - 文件搜索
+- `"Grep"` - 内容搜索
+
+留空或不设置 matcher 表示匹配所有工具调用。
+
+## Hook 示例
+
+### 示例 1：文件保存后自动格式化
+
+当 Claude 编辑或写入文件后，自动运行 Prettier 格式化：
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write \"$CLAUDE_FILE_PATH\" 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write \"$CLAUDE_FILE_PATH\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+注意命令末尾的 `|| true`，这确保即使格式化失败也不会中断 Claude 的工作流。
+
+### 示例 2：代码编辑后运行 Linter
+
+每当 Claude 修改了 TypeScript 文件后，自动运行 ESLint：
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE '\\.(ts|tsx)$'; then npx eslint \"$CLAUDE_FILE_PATH\" --fix 2>/dev/null || true; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+这个示例使用了条件判断，只在修改的文件是 `.ts` 或 `.tsx` 时运行 ESLint。
+
+### 示例 3：自定义通知
+
+当 Claude Code 发送通知时，使用系统通知功能：
+
+```json
+{
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "osascript -e 'display notification \"$CLAUDE_NOTIFICATION\" with title \"Claude Code\"'"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+这个示例在 macOS 上使用 `osascript` 弹出系统通知。
+
+Linux 系统可以使用 `notify-send`：
+
+```json
+{
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "notify-send 'Claude Code' \"$CLAUDE_NOTIFICATION\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 示例 4：阻止某些操作
+
+使用 PreToolUse Hook 来阻止 Claude 修改特定文件。如果 PreToolUse Hook 的命令返回非零退出码，Claude 会收到警告信息：
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -q 'generated/'; then echo 'ERROR: 不允许修改 generated/ 目录下的文件' && exit 1; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 示例 5：任务完成后自动运行测试
+
+当 Claude 停止响应时（表示一轮任务可能完成），自动运行相关测试：
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm test -- --changedSince=HEAD 2>&1 | tail -20"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## Hook 环境变量
+
+Hook 命令执行时，Claude Code 会注入一些环境变量，你可以在命令中引用它们：
+
+### 通用环境变量
+
+- `$CLAUDE_FILE_PATH` - 被操作的文件路径（适用于 Edit、Write、Read 等文件相关工具）
+- `$CLAUDE_NOTIFICATION` - 通知消息内容（适用于 Notification Hook）
+
+### 工具相关环境变量
+
+不同工具触发的 Hook 可能有不同的环境变量可用。文件操作类工具（Edit、Write）会提供 `$CLAUDE_FILE_PATH`，而 Bash 工具可能提供命令相关信息。
+
+### 在命令中使用环境变量
+
+```json
+{
+  "type": "command",
+  "command": "echo \"File modified: $CLAUDE_FILE_PATH\" >> /tmp/claude-log.txt"
+}
+```
+
+## 调试 Hooks
+
+当 Hooks 不按预期工作时，可以通过以下方式调试：
+
+### 添加日志输出
+
+在 Hook 命令中添加日志，记录执行情况：
+
+```json
+{
+  "type": "command",
+  "command": "echo \"[$(date)] Hook triggered for: $CLAUDE_FILE_PATH\" >> /tmp/claude-hooks.log && npx prettier --write \"$CLAUDE_FILE_PATH\""
+}
+```
+
+然后在另一个终端窗口监控日志：
+
+```bash
+tail -f /tmp/claude-hooks.log
+```
+
+### 检查命令是否正确
+
+先在终端中手动测试 Hook 命令，确保它能正常工作：
+
+```bash
+CLAUDE_FILE_PATH="src/index.ts" npx prettier --write "$CLAUDE_FILE_PATH"
+```
+
+### 常见问题排查
+
+**Hook 没有触发**
+
+- 检查 matcher 是否与工具名称完全匹配
+- 检查 settings.json 的 JSON 语法是否正确
+- 确认配置文件在正确的位置
+
+**Hook 执行报错**
+
+- 确保命令中引用的工具已安装（如 prettier、eslint）
+- 检查文件路径是否需要引号包裹
+- 添加 `2>/dev/null || true` 避免错误阻塞
+
+**Hook 执行太慢**
+
+- 避免在 Hook 中运行耗时操作（如完整的测试套件）
+- 使用条件判断缩小执行范围
+- 考虑将耗时操作放在后台执行（添加 `&`）
+
+## 安全注意事项
+
+Hooks 本质上是在你的系统上执行 shell 命令，需要注意安全：
+
+### 项目级 Hooks 需要信任
+
+当你克隆一个包含 `.claude/settings.json` 的项目时，其中的 Hooks 会在你使用 Claude Code 时自动执行。**在使用不信任的项目之前，检查 `.claude/settings.json` 中的 Hook 配置。**
+
+### 最小权限原则
+
+Hook 命令应该只做必要的操作，不要赋予过多权限：
+
+```json
+{
+  "type": "command",
+  "command": "npx prettier --write \"$CLAUDE_FILE_PATH\""
+}
+```
+
+比以下写法更安全：
+
+```json
+{
+  "type": "command",
+  "command": "bash -c 'cd / && find . -name \"*.ts\" -exec prettier --write {} \\;'"
+}
+```
+
+### 避免敏感信息
+
+不要在 Hook 命令中硬编码密码、API Key 等敏感信息。如果需要，通过环境变量引用：
+
+```json
+{
+  "type": "command",
+  "command": "curl -H \"Authorization: Bearer $SLACK_TOKEN\" -d \"text=$CLAUDE_NOTIFICATION\" https://slack.com/api/chat.postMessage"
+}
+```
+
+## 实用的 Hook 配置合集
+
+以下是一个比较完整的 settings.json Hook 配置示例，适用于 TypeScript + React 项目：
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE '(node_modules|dist|build|\\.lock)'; then echo 'ERROR: 禁止修改构建产物和依赖锁文件' && exit 1; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE '\\.(ts|tsx|js|jsx)$'; then npx prettier --write \"$CLAUDE_FILE_PATH\" 2>/dev/null || true; fi"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "osascript -e 'display notification \"$CLAUDE_NOTIFICATION\" with title \"Claude Code\"' 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## 小结
+
+Hooks 是 Claude Code 中强大的自动化工具，能让你的开发工作流更加顺畅。核心要点：
+
+- **五种 Hook 类型**：PreToolUse、PostToolUse、Notification、Stop、SubagentStop，覆盖了 Claude 操作的完整生命周期
+- **配置简单**：在 settings.json 中定义 matcher 和 command 即可
+- **灵活匹配**：通过 matcher 精确控制 Hook 触发的范围
+- **环境变量**：利用 Claude 注入的环境变量获取操作上下文
+- **安全优先**：检查不信任项目的 Hook 配置，遵循最小权限原则
+- **调试方法**：通过日志记录和手动测试排查问题

@@ -1,0 +1,299 @@
+---
+title: "基础命令详解"
+description: "全面了解 Claude Code 的斜杠命令、命令行参数和非交互模式"
+order: 3
+section: beginner
+difficulty: beginner
+readingTime: 10
+pubDate: 2026-02-09
+tags: ["命令", "参数", "CLI", "非交互模式"]
+---
+
+## 斜杠命令
+
+在 Claude Code 的交互式会话中，你可以使用以斜杠 `/` 开头的命令来执行特定操作。这些命令不会被当作对话内容发送给 Claude，而是由 Claude Code 客户端直接处理。
+
+### /help -- 获取帮助
+
+显示所有可用的斜杠命令及其简要说明：
+
+```
+/help
+```
+
+这是你需要记住的第一个命令。当你忘记其他命令时，随时可以通过它来查询。
+
+### /clear -- 清除对话
+
+清除当前会话的所有对话历史，从头开始：
+
+```
+/clear
+```
+
+<CalloutBox type="tip">
+当你从一个任务切换到另一个完全不同的任务时，建议先使用 `/clear` 清除上下文。这样可以避免之前的对话内容干扰新任务的理解，同时也能节省 token 消耗。
+</CalloutBox>
+
+### /compact -- 压缩上下文
+
+当对话变得很长时，Claude Code 消耗的 token 会增加。使用 `/compact` 可以将当前对话历史压缩为摘要，保留关键信息的同时减少 token 用量：
+
+```
+/compact
+```
+
+你还可以在压缩时附加指令，告诉 Claude 在摘要中重点保留哪些信息：
+
+```
+/compact 请重点保留关于数据库配置的讨论内容
+```
+
+### /cost -- 查看费用
+
+显示当前会话已使用的 token 数量和预估费用：
+
+```
+/cost
+```
+
+输出示例：
+
+```
+Session cost: $0.45
+Input tokens:  12,340
+Output tokens:  3,210
+```
+
+<CalloutBox type="info">
+养成定期查看 `/cost` 的习惯，可以帮助你了解不同类型任务的 token 消耗情况，从而更合理地使用 Claude Code。
+</CalloutBox>
+
+### /doctor -- 诊断检查
+
+运行一系列诊断检查，帮助排查常见配置和连接问题：
+
+```
+/doctor
+```
+
+它会检查 Node.js 版本、认证状态、网络连接等，并给出修复建议。
+
+### /init -- 初始化项目配置
+
+在当前项目中创建 `CLAUDE.md` 配置文件：
+
+```
+/init
+```
+
+`CLAUDE.md` 文件用于告诉 Claude Code 关于你的项目的重要信息，例如编码规范、项目结构、构建命令等。这在中级教程中会详细讲解。
+
+### /login 和 /logout -- 认证管理
+
+管理你的 Anthropic 账户认证：
+
+```
+/login   # 登录或切换账户
+/logout  # 退出当前账户
+```
+
+### /status -- 查看状态
+
+显示当前的认证状态、模型信息和会话信息：
+
+```
+/status
+```
+
+### /memory -- 编辑记忆
+
+打开并编辑项目的记忆文件（`CLAUDE.md`），让 Claude 记住项目相关的重要信息：
+
+```
+/memory
+```
+
+这会在你的默认编辑器中打开记忆文件。编辑保存后，Claude 在后续对话中会参考这些信息。
+
+## 非交互模式
+
+除了交互式会话，Claude Code 还支持非交互模式，适合在脚本、CI/CD 管道或快速查询中使用。
+
+### 使用 -p 参数
+
+`-p`（或 `--print`）参数让你直接在命令行中传入提示词，Claude 会处理后直接输出结果，不进入交互式会话：
+
+```bash
+claude -p "解释什么是 React 的 useEffect Hook"
+```
+
+Claude 会输出回答后自动退出。这种模式非常适合：
+
+- 快速提问
+- 脚本中调用
+- 与其他命令行工具集成
+
+### 管道输入
+
+Claude Code 支持通过标准输入（stdin）接收内容，这使得它可以和其他命令行工具配合使用：
+
+```bash
+# 让 Claude 解释某个文件
+cat src/index.ts | claude -p "解释这段代码的逻辑"
+
+# 让 Claude 审查 Git 差异
+git diff | claude -p "审查这些代码变更，指出潜在问题"
+
+# 让 Claude 分析日志
+tail -100 app.log | claude -p "分析这些日志，找出错误原因"
+```
+
+<CalloutBox type="tip">
+管道模式和 `-p` 参数组合使用是最强大的自动化方式之一。你可以把 Claude Code 嵌入到你的日常开发工作流中，比如在 git hook 中自动审查代码。
+</CalloutBox>
+
+## 输出格式
+
+使用 `--output-format` 参数可以控制非交互模式下的输出格式：
+
+### text（默认）
+
+直接输出纯文本，适合人类阅读：
+
+```bash
+claude -p "列出这个项目的主要功能" --output-format text
+```
+
+### json
+
+输出结构化 JSON，适合程序处理：
+
+```bash
+claude -p "分析这个文件的函数列表" --output-format json
+```
+
+输出示例：
+
+```json
+{
+  "result": "...",
+  "cost_usd": 0.05,
+  "input_tokens": 1200,
+  "output_tokens": 350,
+  "duration_ms": 4500
+}
+```
+
+### stream-json
+
+以流式 JSON 格式输出，每行是一个独立的 JSON 对象，适合实时处理长输出：
+
+```bash
+claude -p "逐步分析这段代码" --output-format stream-json
+```
+
+## 模型选择
+
+使用 `--model` 参数可以指定使用的 Claude 模型：
+
+```bash
+# 使用特定模型
+claude --model claude-opus-4-6
+
+# 在非交互模式下使用
+claude -p "解释量子计算" --model claude-sonnet-4
+```
+
+<CalloutBox type="info">
+不同的模型在能力、速度和成本上有所不同。对于复杂的代码分析和生成任务，推荐使用更高级的模型；对于简单的查询和格式化任务，使用较快的模型即可。
+</CalloutBox>
+
+## 工具控制
+
+使用 `--allowedTools` 参数可以限制 Claude 能使用的工具，增强安全性：
+
+```bash
+# 只允许读取文件和搜索，不允许编辑和执行命令
+claude --allowedTools "Read,Grep,Glob"
+
+# 在非交互模式下限制工具
+claude -p "分析这个项目的架构" --allowedTools "Read,Grep,Glob"
+```
+
+常见的工具名称包括：
+
+| 工具 | 说明 |
+|------|------|
+| `Read` | 读取文件内容 |
+| `Edit` | 编辑文件 |
+| `Write` | 写入新文件 |
+| `Bash` | 执行终端命令 |
+| `Grep` | 搜索文件内容 |
+| `Glob` | 按模式匹配文件 |
+
+## 配置管理
+
+使用 `claude config` 命令可以管理 Claude Code 的持久化配置：
+
+```bash
+# 查看所有配置
+claude config list
+
+# 设置配置项
+claude config set theme dark
+
+# 获取某个配置的值
+claude config get theme
+```
+
+### 常用配置项
+
+```bash
+# 设置首选模型
+claude config set model claude-sonnet-4
+
+# 设置主题
+claude config set theme dark
+```
+
+<CalloutBox type="warning">
+配置文件存储在 `~/.claude/` 目录下。如果你在多台机器上使用 Claude Code，需要分别配置。请注意不要将此目录中的认证信息提交到版本控制系统中。
+</CalloutBox>
+
+## 恢复会话
+
+Claude Code 支持恢复之前的会话：
+
+```bash
+# 继续上一次的对话
+claude --continue
+
+# 简写形式
+claude -c
+
+# 恢复特定的会话（通过会话 ID）
+claude --resume SESSION_ID
+```
+
+这对于长时间运行的任务或需要分多次完成的工作特别有用。
+
+## 命令速查表
+
+| 用途 | 命令 |
+|------|------|
+| 启动交互式会话 | `claude` |
+| 快速提问 | `claude -p "你的问题"` |
+| 管道输入 | `cat file \| claude -p "分析"` |
+| 继续上次会话 | `claude -c` |
+| 指定模型 | `claude --model MODEL_NAME` |
+| JSON 输出 | `claude -p "问题" --output-format json` |
+| 查看帮助 | 会话内输入 `/help` |
+| 清除对话 | 会话内输入 `/clear` |
+| 压缩上下文 | 会话内输入 `/compact` |
+| 查看费用 | 会话内输入 `/cost` |
+| 诊断检查 | 会话内输入 `/doctor` |
+
+## 下一步
+
+掌握了这些基础命令后，你已经能够高效地使用 Claude Code 了。下一节我们将介绍不同的订阅方案，帮助你选择最适合自己的使用方式。

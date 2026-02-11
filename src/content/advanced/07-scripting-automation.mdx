@@ -1,0 +1,865 @@
+---
+title: "脚本与自动化"
+description: "掌握 Claude Code CLI 脚本化用法，构建自动化工作流和批处理任务"
+order: 7
+section: advanced
+difficulty: advanced
+readingTime: 12
+pubDate: 2026-02-09
+tags: ["脚本", "自动化", "CLI", "SDK", "批处理"]
+---
+
+## Claude Code CLI 脚本化基础
+
+Claude Code 不仅是一个交互式的开发助手，还是一个强大的命令行工具。通过 `claude -p`（pipe 模式），你可以将 Claude Code 嵌入到任何脚本和自动化流程中。
+
+### 基本语法
+
+```bash
+# 最基本的用法：传入提示词，获取结果
+claude -p "你好，请自我介绍"
+
+# 指定输出格式
+claude -p "分析 package.json 的依赖" --output-format text
+claude -p "列出所有 TODO 注释" --output-format json
+claude -p "实时分析代码" --output-format stream-json
+```
+
+### -p 参数的含义
+
+`-p` 代表 "pipe" 模式（也叫 "print" 模式）。它与交互模式的区别：
+
+| 特性 | 交互模式 (`claude`) | 管道模式 (`claude -p`) |
+|---|---|---|
+| 用户交互 | 支持多轮对话 | 单次输入输出 |
+| 工具确认 | 需要用户确认 | 自动执行 |
+| 输出方式 | 终端格式化输出 | 纯文本/JSON |
+| 适用场景 | 日常开发 | 脚本、自动化、CI/CD |
+
+## 输出格式详解
+
+### text 格式
+
+最常用的输出格式，返回纯文本结果：
+
+```bash
+# 纯文本输出
+result=$(claude -p "解释什么是闭包" --output-format text)
+echo "$result"
+```
+
+输出是 Claude 的纯文本回复，不包含任何格式化标记或元数据。适合：
+- 直接阅读
+- 保存为文本文件
+- 简单的文本处理
+
+### json 格式
+
+返回结构化的 JSON 数据，包含完整的响应元数据：
+
+```bash
+# JSON 输出
+claude -p "分析这段代码的复杂度" --output-format json | jq '.'
+```
+
+JSON 输出的基本结构：
+
+```json
+{
+  "type": "result",
+  "subtype": "success",
+  "cost_usd": 0.012,
+  "is_error": false,
+  "duration_ms": 3500,
+  "duration_api_ms": 3200,
+  "num_turns": 1,
+  "result": "分析结果文本...",
+  "session_id": "abc123"
+}
+```
+
+适合：
+- 程序化处理结果
+- 提取特定字段
+- 监控成本和性能
+
+### stream-json 格式
+
+流式输出 JSON 数据，每行一个 JSON 对象：
+
+```bash
+# 流式 JSON 输出
+claude -p "生成一个完整的 React 组件" --output-format stream-json
+```
+
+每行输出一个事件：
+
+```json
+{"type": "assistant", "message": {"type": "text", "text": "开始生成..."}}
+{"type": "assistant", "message": {"type": "text", "text": "组件代码..."}}
+{"type": "result", "subtype": "success", "result": "..."}
+```
+
+适合：
+- 实时显示进度
+- 长时间任务的进度追踪
+- 构建自定义 UI
+
+## 管道与命令链
+
+### 管道输入
+
+Claude Code 可以从标准输入读取内容：
+
+```bash
+# 将文件内容通过管道传给 Claude Code
+cat src/utils/helper.ts | claude -p "解释这段代码的功能"
+
+# 将命令输出传给 Claude Code 分析
+npm test 2>&1 | claude -p "分析以下测试结果，总结失败的测试和原因"
+
+# 将 git diff 传给 Claude Code 审查
+git diff HEAD~1 | claude -p "审查以下代码变更，指出潜在问题"
+```
+
+### 命令链
+
+将多个 Claude Code 调用串联起来：
+
+```bash
+# 第一步分析，第二步基于分析结果操作
+claude -p "分析 src/ 目录的项目结构，输出需要重构的文件列表（仅文件路径，每行一个）" \
+  --output-format text | \
+while read -r file; do
+  echo "正在处理: $file"
+  claude -p "重构 $file，提取重复代码为共用函数" --output-format text
+done
+```
+
+### 与其他工具组合
+
+```bash
+# 与 jq 配合处理 JSON
+claude -p "列出项目依赖及其用途" --output-format json | jq -r '.result'
+
+# 与 grep 配合过滤结果
+claude -p "列出所有可能的安全风险" --output-format text | grep -i "严重\|高危"
+
+# 与 tee 配合同时输出到终端和文件
+claude -p "生成 API 文档" --output-format text | tee api-docs.md
+```
+
+## Shell 脚本集成
+
+### 基础脚本模板
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# 检查 Claude Code 是否已安装
+if ! command -v claude &> /dev/null; then
+  echo "错误: Claude Code 未安装。请运行 npm install -g @anthropic-ai/claude-code"
+  exit 1
+fi
+
+# 检查 API Key 是否已设置
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "错误: 未设置 ANTHROPIC_API_KEY 环境变量"
+  exit 1
+fi
+
+# 执行任务
+echo "开始分析项目..."
+result=$(claude -p "分析当前项目的技术栈和架构" --output-format text)
+
+echo "分析完成："
+echo "$result"
+```
+
+### 带参数的脚本
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# 使用说明
+usage() {
+  echo "用法: $0 <命令> [选项]"
+  echo ""
+  echo "命令:"
+  echo "  review <文件路径>    审查指定文件"
+  echo "  test <文件路径>      为指定文件生成测试"
+  echo "  explain <文件路径>   解释指定文件的功能"
+  echo "  refactor <文件路径>  重构指定文件"
+  exit 1
+}
+
+# 参数检查
+if [ $# -lt 2 ]; then
+  usage
+fi
+
+COMMAND=$1
+FILE=$2
+
+# 检查文件是否存在
+if [ ! -f "$FILE" ]; then
+  echo "错误: 文件不存在: $FILE"
+  exit 1
+fi
+
+case $COMMAND in
+  review)
+    claude -p "请审查 $FILE 的代码质量，指出问题并给出改进建议" --output-format text
+    ;;
+  test)
+    claude -p "为 $FILE 生成完整的单元测试，使用项目现有的测试框架" --output-format text
+    ;;
+  explain)
+    claude -p "详细解释 $FILE 的功能、设计思路和关键实现" --output-format text
+    ;;
+  refactor)
+    claude -p "重构 $FILE，提升代码质量，保持功能不变" --output-format text
+    ;;
+  *)
+    echo "未知命令: $COMMAND"
+    usage
+    ;;
+esac
+```
+
+使用方式：
+
+```bash
+chmod +x dev-assistant.sh
+./dev-assistant.sh review src/auth/login.ts
+./dev-assistant.sh test src/utils/validator.ts
+```
+
+## 批处理文件
+
+### 批量审查
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# 批量审查所有最近修改的文件
+echo "=== 批量代码审查 ==="
+echo "查找最近修改的文件..."
+
+# 获取最近 24 小时修改的源代码文件
+files=$(find src -name "*.ts" -o -name "*.tsx" | head -20)
+
+total=$(echo "$files" | wc -l | tr -d ' ')
+current=0
+
+mkdir -p review-results
+
+for file in $files; do
+  current=$((current + 1))
+  echo "[$current/$total] 审查: $file"
+
+  claude -p "快速审查 $file，仅报告严重问题。如果没有问题，回复'无问题'。" \
+    --output-format text > "review-results/$(basename "$file").review.md" 2>&1 || {
+    echo "  警告: 审查 $file 失败，跳过"
+    continue
+  }
+done
+
+echo ""
+echo "=== 审查完成 ==="
+echo "结果保存在 review-results/ 目录"
+
+# 汇总有问题的文件
+echo ""
+echo "发现问题的文件："
+grep -rL "无问题" review-results/ 2>/dev/null || echo "所有文件审查通过"
+```
+
+### 批量格式转换
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# 批量将 JavaScript 文件转换为 TypeScript
+echo "=== JavaScript 到 TypeScript 批量转换 ==="
+
+js_files=$(find src -name "*.js" -not -name "*.test.js" -not -path "*/node_modules/*")
+
+for file in $js_files; do
+  ts_file="${file%.js}.ts"
+  echo "转换: $file → $ts_file"
+
+  claude -p "将 $file 从 JavaScript 转换为 TypeScript。
+  要求：
+  - 添加适当的类型注解
+  - 使用 interface 定义对象类型
+  - 保持代码逻辑不变
+  - 处理可能的 null/undefined" \
+    --output-format text
+done
+
+echo "转换完成"
+```
+
+## 定时任务
+
+### 使用 cron 定时执行
+
+```bash
+# 编辑 crontab
+crontab -e
+
+# 每天早上 9 点执行代码质量报告
+0 9 * * * /home/user/scripts/daily-review.sh >> /home/user/logs/review.log 2>&1
+
+# 每周一早上 10 点执行依赖安全检查
+0 10 * * 1 /home/user/scripts/security-check.sh >> /home/user/logs/security.log 2>&1
+```
+
+### 每日代码质量报告脚本
+
+```bash
+#!/bin/bash
+# daily-review.sh
+set -euo pipefail
+
+PROJECT_DIR="/home/user/my-project"
+REPORT_DIR="/home/user/reports"
+DATE=$(date +%Y-%m-%d)
+REPORT_FILE="$REPORT_DIR/daily-review-$DATE.md"
+
+cd "$PROJECT_DIR"
+
+mkdir -p "$REPORT_DIR"
+
+echo "# 每日代码质量报告 - $DATE" > "$REPORT_FILE"
+echo "" >> "$REPORT_FILE"
+
+# 获取昨天以来的变更
+echo "## 变更概览" >> "$REPORT_FILE"
+git log --since="1 day ago" --oneline >> "$REPORT_FILE" 2>/dev/null || echo "无新提交" >> "$REPORT_FILE"
+echo "" >> "$REPORT_FILE"
+
+# 如果有新变更，进行审查
+if git log --since="1 day ago" --oneline | grep -q .; then
+  echo "## 代码审查" >> "$REPORT_FILE"
+
+  claude -p "审查过去 24 小时的代码变更。
+  运行 git diff HEAD~$(git log --since='1 day ago' --oneline | wc -l)...HEAD 查看变更。
+  生成审查摘要，重点关注：
+  1. 代码质量趋势
+  2. 潜在的技术债务
+  3. 改进建议
+  请输出简洁的报告。" \
+    --output-format text >> "$REPORT_FILE"
+else
+  echo "## 无新变更" >> "$REPORT_FILE"
+fi
+
+echo "" >> "$REPORT_FILE"
+echo "---" >> "$REPORT_FILE"
+echo "生成时间: $(date)" >> "$REPORT_FILE"
+
+echo "报告已生成: $REPORT_FILE"
+```
+
+### 安全检查定时任务
+
+```bash
+#!/bin/bash
+# security-check.sh
+set -euo pipefail
+
+PROJECT_DIR="/home/user/my-project"
+cd "$PROJECT_DIR"
+
+echo "=== 安全检查 $(date) ==="
+
+# npm 审计
+echo "--- npm 审计 ---"
+audit_result=$(npm audit 2>&1 || true)
+
+# 让 Claude Code 分析审计结果
+claude -p "分析以下 npm audit 结果，给出优先修复建议：
+
+$audit_result
+
+请按严重程度排序，并给出具体的修复命令。" \
+  --output-format text
+
+echo "=== 安全检查完成 ==="
+```
+
+## 构建自定义自动化脚本
+
+### 项目初始化脚本
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# project-init.sh - 使用 Claude Code 智能初始化项目
+PROJECT_NAME=${1:?"用法: $0 <项目名称> [项目类型]"}
+PROJECT_TYPE=${2:-"web"}
+
+echo "初始化项目: $PROJECT_NAME (类型: $PROJECT_TYPE)"
+
+mkdir -p "$PROJECT_NAME"
+cd "$PROJECT_NAME"
+git init
+
+claude -p "我正在创建一个 $PROJECT_TYPE 类型的项目，名称为 $PROJECT_NAME。
+
+请帮我完成以下初始化工作：
+1. 创建合适的 package.json（包含常用脚本和依赖）
+2. 创建 tsconfig.json（如果适用）
+3. 创建 .gitignore
+4. 创建基本的项目目录结构
+5. 创建一个简单的示例文件
+6. 创建 CLAUDE.md 文件，包含项目上下文信息
+
+项目类型说明：
+- web: React + TypeScript Web 应用
+- api: Node.js + Express API 服务
+- cli: 命令行工具
+- lib: npm 包/库" \
+  --output-format text
+
+echo ""
+echo "项目初始化完成: $PROJECT_NAME"
+echo "下一步: cd $PROJECT_NAME && npm install"
+```
+
+### Git 提交助手
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# smart-commit.sh - 智能生成提交信息
+
+# 检查是否有暂存的变更
+if git diff --cached --quiet; then
+  echo "没有暂存的变更。请先使用 git add 添加文件。"
+  exit 1
+fi
+
+# 获取暂存的变更
+diff=$(git diff --cached)
+files=$(git diff --cached --name-only)
+
+echo "变更的文件:"
+echo "$files"
+echo ""
+
+# 让 Claude Code 生成提交信息
+commit_msg=$(claude -p "根据以下 git diff 生成一条简洁的 commit message。
+
+变更的文件: $files
+
+Diff 内容:
+$diff
+
+要求：
+- 使用 Conventional Commits 格式（feat/fix/refactor/docs/style/test/chore）
+- 第一行不超过 72 个字符
+- 如果需要，可以添加详细描述（空一行后）
+- 使用英文
+- 直接输出 commit message，不要加任何其他说明文字" \
+  --output-format text)
+
+echo "建议的提交信息："
+echo "---"
+echo "$commit_msg"
+echo "---"
+echo ""
+
+read -p "使用此提交信息? (y/n/e[编辑]) " choice
+
+case $choice in
+  y|Y)
+    git commit -m "$commit_msg"
+    echo "提交成功"
+    ;;
+  e|E)
+    git commit -e -m "$commit_msg"
+    ;;
+  *)
+    echo "已取消"
+    ;;
+esac
+```
+
+## Node.js SDK 编程式访问
+
+除了 CLI，Claude Code 还提供了 Node.js SDK，适合构建更复杂的自动化系统。
+
+### 安装 SDK
+
+```bash
+npm install @anthropic-ai/claude-code
+```
+
+### 基本用法
+
+```typescript
+import { claude } from "@anthropic-ai/claude-code";
+
+async function main() {
+  // 基本调用
+  const result = await claude("分析当前项目结构", {
+    cwd: process.cwd(),
+  });
+
+  console.log(result.stdout);
+}
+
+main();
+```
+
+### 流式处理
+
+```typescript
+import { claude } from "@anthropic-ai/claude-code";
+
+async function streamExample() {
+  const process = claude("生成一个完整的 Express 路由模块", {
+    cwd: "/path/to/project",
+  });
+
+  // 监听流式输出
+  process.on("message", (message) => {
+    if (message.type === "assistant") {
+      process.stdout.write(message.content);
+    }
+  });
+
+  const result = await process;
+  console.log("\n完成，耗时:", result.duration_ms, "ms");
+}
+
+streamExample();
+```
+
+### 批量处理示例
+
+```typescript
+import { claude } from "@anthropic-ai/claude-code";
+import * as fs from "fs";
+import * as path from "path";
+
+interface ReviewResult {
+  file: string;
+  review: string;
+  issues: number;
+}
+
+async function batchReview(directory: string): Promise<ReviewResult[]> {
+  const files = fs.readdirSync(directory)
+    .filter(f => f.endsWith(".ts"))
+    .map(f => path.join(directory, f));
+
+  const results: ReviewResult[] = [];
+
+  // 控制并发度
+  const concurrency = 3;
+  for (let i = 0; i < files.length; i += concurrency) {
+    const batch = files.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map(async (file) => {
+        const result = await claude(
+          `审查 ${file} 的代码质量，列出问题数量和描述。最后一行输出格式：问题数量: N`,
+          { cwd: process.cwd() }
+        );
+
+        const issueMatch = result.stdout.match(/问题数量:\s*(\d+)/);
+        return {
+          file,
+          review: result.stdout,
+          issues: issueMatch ? parseInt(issueMatch[1]) : 0,
+        };
+      })
+    );
+    results.push(...batchResults);
+  }
+
+  return results;
+}
+
+async function main() {
+  const results = await batchReview("./src");
+
+  // 按问题数量排序
+  results.sort((a, b) => b.issues - a.issues);
+
+  console.log("=== 代码审查报告 ===\n");
+  for (const r of results) {
+    console.log(`${r.file}: ${r.issues} 个问题`);
+  }
+
+  // 保存详细报告
+  fs.writeFileSync(
+    "review-report.json",
+    JSON.stringify(results, null, 2)
+  );
+}
+
+main();
+```
+
+### 构建自动化工具
+
+```typescript
+import { claude } from "@anthropic-ai/claude-code";
+
+// 自动化 PR 审查工具
+async function reviewPR(prNumber: number) {
+  // 获取 PR 信息
+  const prInfo = await claude(
+    `运行 gh pr view ${prNumber} --json title,body,files 获取 PR 信息，然后总结这个 PR 的变更内容`,
+    { cwd: process.cwd() }
+  );
+
+  // 进行代码审查
+  const review = await claude(
+    `运行 gh pr diff ${prNumber} 获取 PR diff，然后进行代码审查。
+    重点关注安全性和性能问题。输出 Markdown 格式的审查报告。`,
+    { cwd: process.cwd() }
+  );
+
+  return {
+    summary: prInfo.stdout,
+    review: review.stdout,
+  };
+}
+```
+
+## 自动化工作流中的错误处理
+
+### Shell 脚本错误处理
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# 错误处理函数
+handle_error() {
+  local exit_code=$?
+  local line_number=$1
+  echo "错误: 脚本在第 $line_number 行失败 (退出码: $exit_code)"
+  # 可以在此发送告警通知
+  exit $exit_code
+}
+
+trap 'handle_error $LINENO' ERR
+
+# 带超时的 Claude Code 调用
+run_with_timeout() {
+  local timeout=$1
+  shift
+  local prompt="$*"
+
+  timeout "$timeout" claude -p "$prompt" --output-format text || {
+    echo "警告: Claude Code 调用超时或失败"
+    return 1
+  }
+}
+
+# 带重试的调用
+run_with_retry() {
+  local max_retries=3
+  local attempt=1
+  local prompt="$*"
+
+  while [ $attempt -le $max_retries ]; do
+    if result=$(claude -p "$prompt" --output-format text 2>&1); then
+      echo "$result"
+      return 0
+    fi
+    echo "尝试 $attempt/$max_retries 失败，等待后重试..."
+    sleep $((attempt * 2))
+    attempt=$((attempt + 1))
+  done
+
+  echo "错误: 所有重试均失败"
+  return 1
+}
+
+# 使用示例
+echo "开始自动化任务..."
+result=$(run_with_retry "审查 src/index.ts 的代码质量")
+echo "$result"
+```
+
+### Node.js 错误处理
+
+```typescript
+import { claude } from "@anthropic-ai/claude-code";
+
+async function safeClaudeCall(
+  prompt: string,
+  options: { maxRetries?: number; timeoutMs?: number } = {}
+) {
+  const { maxRetries = 3, timeoutMs = 60000 } = options;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+      const result = await claude(prompt, {
+        cwd: process.cwd(),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+      return result;
+    } catch (error) {
+      console.error(`尝试 ${attempt}/${maxRetries} 失败:`, error);
+
+      if (attempt === maxRetries) {
+        throw new Error(`${maxRetries} 次尝试后仍然失败: ${error}`);
+      }
+
+      // 指数退避
+      await new Promise(resolve =>
+        setTimeout(resolve, Math.pow(2, attempt) * 1000)
+      );
+    }
+  }
+}
+```
+
+## 实战：自动化每日代码审查脚本
+
+下面是一个综合运用本节知识的完整自动化脚本：
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# daily-code-review.sh - 每日自动代码审查
+# 用法: ./daily-code-review.sh [天数，默认1]
+
+DAYS=${1:-1}
+PROJECT_DIR=$(pwd)
+REPORT_DIR="$PROJECT_DIR/.reports"
+DATE=$(date +%Y-%m-%d)
+REPORT_FILE="$REPORT_DIR/review-$DATE.md"
+
+# 初始化
+mkdir -p "$REPORT_DIR"
+
+echo "====================================="
+echo "  每日代码审查 - $DATE"
+echo "  审查范围: 最近 $DAYS 天的变更"
+echo "====================================="
+
+# 检查前提条件
+if ! command -v claude &> /dev/null; then
+  echo "错误: 未安装 Claude Code"
+  exit 1
+fi
+
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "错误: 未设置 ANTHROPIC_API_KEY"
+  exit 1
+fi
+
+# 获取变更列表
+commits=$(git log --since="$DAYS days ago" --oneline 2>/dev/null || true)
+if [ -z "$commits" ]; then
+  echo "过去 $DAYS 天没有新的提交"
+  exit 0
+fi
+
+commit_count=$(echo "$commits" | wc -l | tr -d ' ')
+changed_files=$(git diff --name-only "HEAD~$commit_count"...HEAD 2>/dev/null || true)
+file_count=$(echo "$changed_files" | grep -c . || echo "0")
+
+echo "发现 $commit_count 个提交，涉及 $file_count 个文件"
+echo ""
+
+# 生成报告头
+cat > "$REPORT_FILE" << EOF
+# 每日代码审查报告
+
+- 日期: $DATE
+- 审查范围: 最近 $DAYS 天
+- 提交数量: $commit_count
+- 变更文件数: $file_count
+
+## 提交记录
+
+$commits
+
+## 变更文件
+
+$changed_files
+
+EOF
+
+# 综合审查
+echo "正在进行综合审查..."
+claude -p "对最近 $DAYS 天的代码变更进行综合审查。
+
+提交记录:
+$commits
+
+变更文件:
+$changed_files
+
+请运行 git diff HEAD~${commit_count}...HEAD 查看具体变更。
+
+审查维度：
+1. 代码质量总体评价
+2. 发现的安全风险
+3. 性能相关问题
+4. 架构和设计建议
+5. 测试覆盖情况
+
+请输出 Markdown 格式的审查报告。" \
+  --max-turns 5 \
+  --output-format text >> "$REPORT_FILE" 2>&1 || {
+  echo "警告: 综合审查失败" >> "$REPORT_FILE"
+}
+
+# 添加报告脚注
+cat >> "$REPORT_FILE" << EOF
+
+---
+*报告由 Claude Code 自动生成于 $(date)*
+*项目目录: $PROJECT_DIR*
+EOF
+
+echo ""
+echo "====================================="
+echo "  审查完成"
+echo "  报告位置: $REPORT_FILE"
+echo "====================================="
+```
+
+将此脚本配置为 cron 定时任务：
+
+```bash
+# 每个工作日早上 8:30 自动执行
+30 8 * * 1-5 cd /home/user/my-project && ./daily-code-review.sh >> /home/user/logs/daily-review.log 2>&1
+```
+
+## 小结
+
+本节全面介绍了 Claude Code 的脚本化和自动化能力。核心知识点回顾：
+
+- **CLI 基础**：`claude -p` 管道模式是脚本化的基础
+- **输出格式**：text 适合阅读，json 适合程序处理，stream-json 适合实时场景
+- **管道集成**：与 shell 管道、jq、grep 等工具无缝配合
+- **Shell 脚本**：参数化脚本、批量处理、错误处理
+- **定时任务**：使用 cron 实现定期自动化审查和报告
+- **Node.js SDK**：编程式访问，支持流式处理和并发控制
+- **错误处理**：超时控制、重试机制、优雅降级
+
+通过这些技术，你可以构建出强大的自动化工作流，让 Claude Code 在日常开发中发挥更大的价值。

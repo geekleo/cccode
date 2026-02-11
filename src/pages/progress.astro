@@ -1,0 +1,160 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import { sections } from '@lib/navigation';
+import { getCollection } from 'astro:content';
+
+const sectionData: { id: string; title: string; icon: string; urlPrefix: string; total: number; lessons: { id: string; title: string; href: string }[] }[] = [];
+
+for (const section of sections) {
+  const lessons = await getCollection(section.collectionName as any, ({ data }: any) => !data.draft);
+  const sorted = lessons.sort((a: any, b: any) => a.data.order - b.data.order);
+  sectionData.push({
+    id: section.collectionName,
+    title: section.title,
+    icon: section.icon,
+    urlPrefix: section.urlPrefix,
+    total: sorted.length,
+    lessons: sorted.map((l: any) => ({ id: l.id, title: l.data.title, href: `${section.urlPrefix}/${l.id}` })),
+  });
+}
+
+const totalLessons = sectionData.reduce((sum, s) => sum + s.total, 0);
+---
+
+<BaseLayout title="学习进度 - Claude Code 教程" description="追踪你的 Claude Code 学习进度">
+  <!-- Hero -->
+  <div class="relative overflow-hidden border-b border-gray-200 dark:border-gray-800">
+    <div class="absolute inset-0 bg-gradient-to-b from-primary-50 to-white dark:from-primary-950/20 dark:to-gray-950"></div>
+    <div class="bg-grid absolute inset-0 opacity-50"></div>
+    <div class="relative mx-auto max-w-7xl px-4 py-14 sm:px-6">
+      <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-3xl shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+        📊
+      </div>
+      <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">学习进度</h1>
+      <p class="mt-3 max-w-2xl text-lg text-gray-600 dark:text-gray-400">
+        追踪你的学习旅程，已读文章会自动标记。
+      </p>
+      <!-- Overall stats -->
+      <div class="mt-6 flex items-center gap-4">
+        <div class="flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+          <span id="read-count" class="text-xl font-bold text-primary-600 dark:text-primary-400">0</span>
+          <span class="text-sm text-gray-500 dark:text-gray-400">/ {totalLessons} 已读</span>
+        </div>
+        <div class="h-2 flex-1 max-w-xs overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
+          <div id="overall-bar" class="h-full rounded-full bg-primary-500 transition-all duration-500" style="width: 0%"></div>
+        </div>
+        <span id="overall-pct" class="text-sm font-medium text-gray-500 dark:text-gray-400">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sections -->
+  <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <div class="space-y-8">
+      {sectionData.map((sec) => (
+        <div class="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900" data-section-id={sec.id} data-section-total={sec.total}>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">{sec.icon}</span>
+              <div>
+                <h2 class="font-bold text-gray-900 dark:text-white">{sec.title}</h2>
+                <p class="text-xs text-gray-400 dark:text-gray-500">
+                  <span class="section-read-count" data-section={sec.id}>0</span> / {sec.total} 已读
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="h-1.5 w-24 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                <div class="section-bar h-full rounded-full bg-primary-500 transition-all duration-500" data-section={sec.id} style="width: 0%"></div>
+              </div>
+              <span class="section-pct text-xs font-medium text-gray-400 dark:text-gray-500" data-section={sec.id}>0%</span>
+            </div>
+          </div>
+          <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {sec.lessons.map((lesson, i) => (
+              <a
+                href={lesson.href}
+                class="lesson-item flex items-center gap-3 rounded-lg border border-gray-100 px-3 py-2.5 text-sm transition-colors hover:border-primary-200 hover:bg-primary-50/50 dark:border-gray-800 dark:hover:border-primary-800 dark:hover:bg-primary-950/20"
+                data-section={sec.id}
+                data-lesson={lesson.id}
+              >
+                <div class="lesson-check flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-gray-300 text-white dark:border-gray-600" data-section={sec.id} data-lesson={lesson.id}>
+                  <svg class="hidden h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                </div>
+                <span class="lesson-title flex-1 text-gray-600 dark:text-gray-400">{lesson.title}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- Reset -->
+    <div class="mt-10 text-center">
+      <button id="reset-progress" class="text-sm text-gray-400 transition-colors hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400">
+        重置学习进度
+      </button>
+    </div>
+  </div>
+</BaseLayout>
+
+<script is:inline>
+(function() {
+  function getProgress() {
+    try { return JSON.parse(localStorage.getItem('cc_reading_progress') || '{}'); } catch { return {}; }
+  }
+
+  function render() {
+    const progress = getProgress();
+    let totalRead = 0;
+    const totalAll = parseInt(document.getElementById('read-count')?.parentElement?.querySelector('span:last-child')?.textContent || '0');
+
+    document.querySelectorAll('[data-section-id]').forEach(el => {
+      const sectionId = el.getAttribute('data-section-id');
+      const total = parseInt(el.getAttribute('data-section-total') || '0');
+      const sectionProgress = progress[sectionId] || {};
+      let read = 0;
+
+      el.querySelectorAll('.lesson-check').forEach(check => {
+        const lessonId = check.getAttribute('data-lesson');
+        const p = sectionProgress[lessonId];
+        if (p && (p.readAt || p.percent >= 80)) {
+          read++;
+          check.classList.remove('border-gray-300', 'dark:border-gray-600');
+          check.classList.add('border-primary-500', 'bg-primary-500');
+          check.querySelector('svg')?.classList.remove('hidden');
+          const title = check.closest('.lesson-item')?.querySelector('.lesson-title');
+          if (title) { title.classList.add('text-gray-900', 'dark:text-white', 'font-medium'); }
+        }
+      });
+
+      totalRead += read;
+      const pct = total > 0 ? Math.round((read / total) * 100) : 0;
+
+      const countEl = document.querySelector(`.section-read-count[data-section="${sectionId}"]`);
+      if (countEl) countEl.textContent = read.toString();
+      const barEl = document.querySelector(`.section-bar[data-section="${sectionId}"]`);
+      if (barEl) barEl.style.width = pct + '%';
+      const pctEl = document.querySelector(`.section-pct[data-section="${sectionId}"]`);
+      if (pctEl) pctEl.textContent = pct + '%';
+    });
+
+    const readCountEl = document.getElementById('read-count');
+    if (readCountEl) readCountEl.textContent = totalRead.toString();
+    const overallBar = document.getElementById('overall-bar');
+    const overallPct = document.getElementById('overall-pct');
+    const pctVal = totalAll > 0 ? Math.round((totalRead / totalAll) * 100) : 0;
+    if (overallBar) overallBar.style.width = pctVal + '%';
+    if (overallPct) overallPct.textContent = pctVal + '%';
+  }
+
+  document.getElementById('reset-progress')?.addEventListener('click', () => {
+    if (confirm('确定要重置所有学习进度吗？')) {
+      localStorage.removeItem('cc_reading_progress');
+      location.reload();
+    }
+  });
+
+  render();
+})();
+</script>
