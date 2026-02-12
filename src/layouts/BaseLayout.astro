@@ -2,6 +2,7 @@
 import BaseHead from '@components/BaseHead.astro';
 import Header from '@components/Header.astro';
 import Footer from '@components/Footer.astro';
+import ConsultFloat from '@components/ConsultFloat.astro';
 import '@/styles/global.css';
 
 interface Props {
@@ -26,5 +27,6 @@ const lang = Astro.url.pathname.startsWith('/en') ? 'en' : 'zh-CN';
       <slot />
     </main>
     <Footer />
+    <ConsultFloat />
   </body>
 </html>

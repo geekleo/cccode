@@ -93,6 +93,12 @@ const allJsonLd = jsonLd
   rel="stylesheet"
 />
 
+<!-- Vercel Analytics -->
+<script>
+  import { inject } from '@vercel/analytics';
+  inject();
+</script>
+
 <!-- Dark mode: prevent flash -->
 <script is:inline>
   const theme = localStorage.getItem('theme') ||

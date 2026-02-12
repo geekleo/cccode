@@ -1,0 +1,135 @@
+---
+// 付费咨询浮动按钮 + 弹窗组件
+---
+
+<!-- 浮动按钮 -->
+<button
+  id="consult-btn"
+  class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/40 hover:scale-105 transition-all cursor-pointer"
+  aria-label="付费咨询"
+>
+  <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+  </svg>
+  <span class="text-sm font-medium hidden sm:inline">付费咨询</span>
+</button>
+
+<!-- 弹窗遮罩 -->
+<div
+  id="consult-overlay"
+  class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300"
+>
+</div>
+
+<!-- 弹窗面板 -->
+<div
+  id="consult-modal"
+  class="fixed z-[70] hidden opacity-0 transition-all duration-300 translate-y-4
+         bottom-0 inset-x-0 sm:bottom-auto sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2"
+>
+  <div class="bg-white dark:bg-gray-900 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[420px] max-h-[90vh] overflow-y-auto">
+    <!-- 关闭按钮 -->
+    <button
+      id="consult-close"
+      class="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+      aria-label="关闭"
+    >
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+
+    <!-- 头部 -->
+    <div class="bg-gradient-to-r from-indigo-500 to-purple-600 sm:rounded-t-2xl rounded-t-2xl px-5 pt-4 pb-3 text-white text-center">
+      <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-white/20 backdrop-blur flex items-center justify-center text-lg font-bold">
+        GL
+      </div>
+      <h3 class="text-base font-bold">Geek Leo · 付费咨询</h3>
+      <p class="text-xs text-white/80 mt-0.5">20年全栈工程师 · AI编程专家</p>
+    </div>
+
+    <!-- 服务档位 -->
+    <div class="px-5 py-3 space-y-2">
+      <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">服务项目</h4>
+
+      <div class="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 flex items-center justify-between hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors">
+        <div>
+          <p class="text-sm font-medium text-gray-900 dark:text-gray-100">AI编程视频咨询</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">1对1答疑 30 分钟</p>
+        </div>
+        <span class="text-base font-bold text-indigo-600 dark:text-indigo-400">¥199</span>
+      </div>
+
+      <div class="rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50/50 dark:bg-indigo-950/30 px-3 py-2.5 flex items-center justify-between ring-1 ring-indigo-300 dark:ring-indigo-600">
+        <div>
+          <div class="flex items-center gap-1.5">
+            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">AI编程线上指导</p>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 font-medium leading-none">推荐</span>
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400">微信答疑 1周 不限次</p>
+        </div>
+        <span class="text-base font-bold text-indigo-600 dark:text-indigo-400">¥499</span>
+      </div>
+
+      <div class="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 flex items-center justify-between hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors">
+        <div>
+          <p class="text-sm font-medium text-gray-900 dark:text-gray-100">软件定制开发 / 企业培训</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">按需定制方案</p>
+        </div>
+        <span class="text-base font-bold text-gray-600 dark:text-gray-400">私聊</span>
+      </div>
+    </div>
+
+    <!-- 二维码 -->
+    <div class="px-5 pb-4 text-center">
+      <div class="border-t border-gray-200 dark:border-gray-700 pt-3">
+        <img
+          src="/wechat-qr.png"
+          alt="微信二维码"
+          class="w-36 h-36 mx-auto rounded-lg shadow-sm"
+          loading="lazy"
+        />
+        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          扫码添加微信，备注「<span class="text-indigo-600 dark:text-indigo-400 font-medium">CC咨询</span>」
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+(function () {
+  const btn = document.getElementById('consult-btn');
+  const overlay = document.getElementById('consult-overlay');
+  const modal = document.getElementById('consult-modal');
+  const close = document.getElementById('consult-close');
+  if (!btn || !overlay || !modal || !close) return;
+
+  function open() {
+    overlay.classList.remove('hidden');
+    modal.classList.remove('hidden');
+    requestAnimationFrame(() => {
+      overlay.classList.remove('opacity-0');
+      modal.classList.remove('opacity-0', 'translate-y-4');
+    });
+    document.body.style.overflow = 'hidden';
+  }
+
+  function shut() {
+    overlay.classList.add('opacity-0');
+    modal.classList.add('opacity-0', 'translate-y-4');
+    setTimeout(() => {
+      overlay.classList.add('hidden');
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+    }, 300);
+  }
+
+  btn.addEventListener('click', open);
+  close.addEventListener('click', shut);
+  overlay.addEventListener('click', shut);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) shut();
+  });
+})();
+</script>
